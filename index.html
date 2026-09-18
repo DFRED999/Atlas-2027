@@ -17,7 +17,31 @@
   --text:#1b2233; --muted:#6b7385; --red:#c62828; --red-bg:#fde8e8;
   --green:#1e7d3a; --green-bg:#e3f5e8; --blue:#1d5fbf; --edit:#fffbea; --auto:#f4f6fb;
   --warn:#b26a00; --warn-bg:#fff3dc;
+  /* צבע זיהוי לסוג הפרויקט: יזם מול משהב״ט */
+  --pt-yazam:#0f766e; --pt-yazam-bg:#e2f2f0;
+  --pt-mod:#6d28d9;   --pt-mod-bg:#efe8fd;
 }
+/* ---- הבחנה חזותית בין סוגי פרויקטים ---- */
+.sb-group[data-ptype]>.sb-group-h{border-inline-start:4px solid transparent;padding-inline-start:8px}
+.sb-group[data-ptype=yazam]>.sb-group-h{border-inline-start-color:var(--pt-yazam);color:var(--pt-yazam)}
+.sb-group[data-ptype=mod]>.sb-group-h{border-inline-start-color:var(--pt-mod);color:var(--pt-mod)}
+.sb-group[data-ptype=yazam] .sb-children{border-inline-start:2px solid var(--pt-yazam-bg);margin-inline-start:5px}
+.sb-group[data-ptype=mod] .sb-children{border-inline-start:2px solid var(--pt-mod-bg);margin-inline-start:5px}
+.sb-group[data-ptype=yazam] .sb-client-h{color:#0b5b55}
+.sb-group[data-ptype=mod] .sb-client-h{color:#5b21b6}
+.sb-group[data-ptype=yazam] .sb-item:not(.active){background:var(--pt-yazam-bg)}
+.sb-group[data-ptype=mod] .sb-item:not(.active){background:var(--pt-mod-bg)}
+.sb-group[data-ptype] .sb-item{margin-bottom:2px}
+.ptag{display:inline-block;font-size:11px;font-weight:700;border-radius:9px;padding:1px 8px;white-space:nowrap}
+.pt-yazam{background:var(--pt-yazam-bg);color:var(--pt-yazam)}
+.pt-mod{background:var(--pt-mod-bg);color:var(--pt-mod)}
+.crumb[data-ptype]{border-inline-start:6px solid transparent;padding-inline-start:10px;border-radius:4px}
+.crumb[data-ptype=yazam]{border-inline-start-color:var(--pt-yazam)}
+.crumb[data-ptype=mod]{border-inline-start-color:var(--pt-mod)}
+.crumb[data-ptype=yazam] h2{color:var(--pt-yazam)}
+.crumb[data-ptype=mod] h2{color:var(--pt-mod)}
+.grid tr[data-ptype=yazam]:not(.pairrow) td:first-child{box-shadow:inset -4px 0 0 var(--pt-yazam)}
+.grid tr[data-ptype=mod]:not(.pairrow) td:first-child{box-shadow:inset -4px 0 0 var(--pt-mod)}
 *{box-sizing:border-box}
 html,body{margin:0;height:100%}
 body{font-family:Heebo,"Segoe UI",Arial,sans-serif;font-size:14px;color:var(--text);background:var(--bg)}
@@ -736,6 +760,7 @@ const COLS = {
     { key: 'supAdj', label: 'תוספת / קיזוז לספק', type: 'adjust', addKey: 'supAdd', dedKey: 'supDed', money: true, sup: true },
     { key: 'supplierPay', label: 'תשלום לספק', type: 'numAuto', money: true, sup: true },
     { key: 'supplierDocNo', label: 'ח. מס קבלה ספק', type: 'supdoc', sup: true },
+    { key: 'supplierDocDate', label: 'תאריך ח. ספק', type: 'date', sup: true },
     { key: 'supplierPayDate', label: 'תאריך תשלום לספק', type: 'dateAuto', sup: true },
     { key: 'supplierPaid', label: 'שולם לספק', type: 'toggle', sup: true },
     { key: 'notes', label: 'הערות', type: 'text', w: 'l' }
@@ -769,6 +794,7 @@ const COLS = {
     { key: 'supAdj', label: 'תוספת / קיזוז לספק', type: 'adjust', addKey: 'supAdd', dedKey: 'supDed', money: true, sup: true },
     { key: 'supplierPay', label: 'תשלום לספק', type: 'numAuto', money: true, sup: true },
     { key: 'supplierDocNo', label: 'ח. מס קבלה ספק', type: 'supdoc', sup: true },
+    { key: 'supplierDocDate', label: 'תאריך ח. ספק', type: 'date', sup: true },
     { key: 'supplierPayDate', label: 'תאריך תשלום לספק', type: 'dateAuto', sup: true },
     { key: 'supplierPaid', label: 'שולם לספק', type: 'toggle', sup: true },
     { key: 'notes', label: 'הערות', type: 'text', w: 'l' }
@@ -1103,7 +1129,7 @@ function buildCashflow() {
       const c = calcRow(t.kind, row);
       const isProj = PROJECT_TYPES.includes(t.kind);
       // היררכיה בגיליון הראשי: סוג פרויקט › לקוח › פרויקט
-      const refBase = { tabId: id, rowId: row.id, serial: row.serial, tabName: t.name, group: isProj ? TYPE_LABEL[t.kind] : GROUP_LABEL[t.kind], client: isProj ? (t.entity.client || '') : t.name };
+      const refBase = { tabId: id, rowId: row.id, serial: row.serial, tabName: t.name, group: isProj ? TYPE_LABEL[t.kind] : GROUP_LABEL[t.kind], client: isProj ? (t.entity.client || '') : t.name, ptype: isProj ? t.kind : '' };
       if (PROJECT_TYPES.includes(t.kind)) {
         const docs = ['dealNo', 'taxInvNo', 'taxReceiptNo', 'receiptNo'].filter(k => row[k]).map(k => ({ field: k, no: row[k] }));
         // צמד: הכנסה לאטלס + תשלום לספק של אותה שורה – מסומנים יחד בגיליון הראשי
@@ -1118,7 +1144,9 @@ function buildCashflow() {
           push(Object.assign({}, refBase, {
             pair, key: id + '|' + row.id + '|sup', dir: 'out', role: 'תשלום לספק', amount: c.supplierPay,
             date: sd, status: row.supplierPaid ? 'actual' : 'forecast', entity: t.name,
-            desc: 'תשלום לספק · תאריך נגזר מתאריך קבלת הכסף של אטלס', docs: [{ field: 'supplierDocNo', no: row.supplierDocNo || '', zero: String(row.supplierDocNo || '').trim() === '0' || !String(row.supplierDocNo || '').trim() }]
+            desc: 'תשלום לספק · תאריך נגזר מתאריך קבלת הכסף של אטלס' +
+              (row.supplierDocDate && row.supplierDocDate !== sd ? ' · ח. מס קבלה של הספק מיום ' + fmtDate(row.supplierDocDate) : ''),
+            docs: [{ field: 'supplierDocNo', no: row.supplierDocNo || '', zero: String(row.supplierDocNo || '').trim() === '0' || !String(row.supplierDocNo || '').trim() }]
           }));
         }
       } else if (t.kind === 'freelancer') {
@@ -1820,6 +1848,8 @@ function renderSidebar() {
   h += item('main', '📊 גיליון ראשי – תזרים');
   for (const type of PROJECT_TYPES) {
     const ids = S.entityOrder.filter(id => S.entities[id].type === type);
+    // "פרויקטים רגילים" הוסר מהמערכת – הקבוצה מוצגת רק אם נשארו בה חוצצים מגיבוי ישן
+    if (type === 'regular' && !ids.length) continue;
     // היררכיה: סוג פרויקט › לקוח › פרויקט
     const byClient = new Map();
     ids.forEach(id => { const c = (S.entities[id].client || '').trim(); if (!byClient.has(c)) byClient.set(c, []); byClient.get(c).push(id); });
@@ -1831,7 +1861,7 @@ function renderSidebar() {
       inner += '<div class="sb-group sb-client' + (open ? '' : ' closed') + '"><div class="sb-group-h sb-client-h" data-grp="' + esc(key) + '" title="' + esc(c || 'פרויקטים ללא לקוח') + '"><span class="chev">▼</span><span class="sb-label">' + (c ? esc(c) : '<span class="muted">ללא לקוח</span>') + '</span><span class="sb-count">' + pids.length + '</span></div><div class="sb-children">' +
         pids.map(id => item(id, S.entities[id].name, S.entities[id].rows.length)).join('') + '</div></div>';
     }
-    h += '<div class="sb-group' + (UI.sbOpen[type] ? '' : ' closed') + '"><div class="sb-group-h" data-grp="' + type + '"><span class="chev">▼</span>' + GROUP_LABEL[type] + '<span class="sb-count">' + ids.length + '</span></div><div class="sb-children">' +
+    h += '<div class="sb-group' + (UI.sbOpen[type] ? '' : ' closed') + '" data-ptype="' + type + '"><div class="sb-group-h" data-grp="' + type + '"><span class="chev">▼</span>' + GROUP_LABEL[type] + '<span class="sb-count">' + ids.length + '</span></div><div class="sb-children">' +
       (ids.length ? inner : '<div class="sb-empty">אין עדיין – ״＋ חדש״</div>') + '</div></div>';
   }
   h += '<div class="sb-group' + (UI.sbOpen.ops ? '' : ' closed') + '"><div class="sb-group-h" data-grp="ops"><span class="chev">▼</span>תפעול</div><div class="sb-children">' +
@@ -1935,7 +1965,7 @@ function renderTab(v, t) {
   // חוצץ אדם: השורות האחרונות בראש הטבלה
   if (t.kind === 'freelancer') items = items.slice().sort((a, b) => (String(b.row.year || '') + String(b.row.month || '')).localeCompare(String(a.row.year || '') + String(a.row.month || '')) || nz(b.row.serial) - nz(a.row.serial));
   const e = t.entity;
-  let h = '<div class="crumb"><h2>' + esc(t.name) + '</h2><span class="meta">' + (t.isOps ? 'תפעול · חוצץ מערכת קבוע' : TYPE_LABEL[t.kind] + (e.client ? ' · לקוח: ' + esc(e.client) : '') + (e.owner ? ' · אחראי: ' + esc(e.owner) : '') + (PROJECT_TYPES.includes(t.kind) && num(e.termDays) !== null ? ' · תנאי תשלום +' + esc(e.termDays) : '') + (['yazam', 'mod'].includes(t.kind) && num(e.supplierPctDefault) !== null ? ' · גבייה מספק ' + esc(e.supplierPctDefault) + '%' : '') + ' · מזהה ' + esc(e.id)) + '</span><span class="grow"></span>';
+  let h = '<div class="crumb"' + (['yazam', 'mod'].includes(t.kind) ? ' data-ptype="' + t.kind + '"' : '') + '><h2>' + esc(t.name) + '</h2><span class="meta">' + (t.isOps ? 'תפעול · חוצץ מערכת קבוע' : TYPE_LABEL[t.kind] + (e.client ? ' · לקוח: ' + esc(e.client) : '') + (e.owner ? ' · אחראי: ' + esc(e.owner) : '') + (PROJECT_TYPES.includes(t.kind) && num(e.termDays) !== null ? ' · תנאי תשלום +' + esc(e.termDays) : '') + (['yazam', 'mod'].includes(t.kind) && num(e.supplierPctDefault) !== null ? ' · גבייה מספק ' + esc(e.supplierPctDefault) + '%' : '') + ' · מזהה ' + esc(e.id)) + '</span><span class="grow"></span>';
   if (!t.isOps) h += '<button class="btn sm" data-act="editent">✎ פרטי חוצץ</button><button class="btn sm danger" data-act="delent">🗑 מחיקת חוצץ</button>';
   h += '</div>';
   h += tabMessagesHTML(t, items);
@@ -2103,7 +2133,9 @@ function docDateTarget(t, field) {
     // מסמכי אטלס (עסקה / מס / מס קבלה / קבלה): תאריך המסמך הוא הצפי לתשלום, לא קבלת כסף בפועל
     if (['dealNo', 'taxInvNo', 'taxReceiptNo', 'receiptNo'].includes(field))
       return { key: 'expectedPay', label: 'צפי לתשלום', ov: false, also: (field === 'dealNo' || field === 'taxInvNo') ? { key: 'submitted', label: 'הוגש' } : null };
-    if (field === 'supplierDocNo') return { key: 'supplierPayDate', label: 'תאריך תשלום לספק', ov: true };
+    // מסמך הספק: התאריך נרשם לתיעוד בלבד ("תאריך ח. ספק"). התשלום בפועל לספק
+    // יוצא ביום שאטלס קיבלה את הכסף, ולכן אין לגעת ב"תאריך תשלום לספק" שמניע את התזרים.
+    if (field === 'supplierDocNo') return { key: 'supplierDocDate', label: 'תאריך ח. ספק', ov: false };
   }
   if (t.kind === 'freelancer') return { key: 'payDate', label: 'תאריך תשלום', ov: false };
   if (t.kind === 'authorities') return { key: 'payDate', label: 'תאריך בפועל', ov: false };
@@ -4919,10 +4951,10 @@ function renderCashflow(v) {
         continue;
       }
       const pc = r.pair ? pairColor(r.tabId) : null;
-      h += '<tr' + (r.pair ? ' class="pairrow" data-pair="' + esc(r.pair) + '" title="צמד תנועות: הכנסה לאטלס ותשלום לספק באותה שורת מקור · ' + esc(r.tabName) + '"' : '') +
+      h += '<tr' + (r.ptype ? ' data-ptype="' + esc(r.ptype) + '"' : '') + (r.pair ? ' class="pairrow" data-pair="' + esc(r.pair) + '" title="צמד תנועות: הכנסה לאטלס ותשלום לספק באותה שורת מקור · ' + esc(r.tabName) + '"' : '') +
         ' style="' + (r.status === 'forecast' ? 'opacity:.72;' : '') + (pc ? '--pcb:' + pc.bg + ';--pcl:' + pc.line : '') + '"><td>' + r.n + '</td><td class="num">' + fmtDate(r.date) + '</td><td class="num">' + cfText(r, 'month') + '</td><td>' + (r.dir === 'in' ? '<span style="color:var(--green)">▲ הכנסה</span>' : '<span style="color:var(--red)">▼ הוצאה</span>') + '</td>' +
         '<td class="num" style="color:var(--green);font-weight:600">' + (r.dir === 'in' ? fmtMoney(r.amount) : '') + '</td><td class="num" style="color:var(--red);font-weight:600">' + (r.dir === 'out' ? fmtMoney(r.amount) : '') + '</td>' +
-        '<td class="num auto"' + (r.balance < 0 ? ' style="color:var(--red)"' : '') + '><b>' + fmtMoney(r.balance) + '</b></td><td class="h-group">' + esc(r.group) + '</td><td class="h-client">' + (r.client ? esc(r.client) : '<span class="muted">—</span>') + '</td>' +
+        '<td class="num auto"' + (r.balance < 0 ? ' style="color:var(--red)"' : '') + '><b>' + fmtMoney(r.balance) + '</b></td><td class="h-group">' + (r.ptype === 'yazam' || r.ptype === 'mod' ? '<span class="ptag pt-' + r.ptype + '">' + esc(r.group) + '</span>' : esc(r.group)) + '</td><td class="h-client">' + (r.client ? esc(r.client) : '<span class="muted">—</span>') + '</td>' +
         '<td class="h-proj"><a href="#" data-act="cfsrc" data-tab="' + r.tabId + '" data-rowid="' + r.rowId + '" title="מעבר לשורה ' + esc(r.serial || '') + ' בחוצץ">' + esc(r.tabName) + '</a>' + (r.serial ? ' <span class="muted">· ' + r.serial + '</span>' : '') + (r.pair ? '<span class="pair-tag" title="צמד הכנסה/ספק"></span>' : '') + '</td><td>' + esc(r.role) + '</td><td class="muted">' + esc(r.desc) + '</td>' +
         '<td>' + (r.docs || []).map(dd => '<span class="chip ' + (dd.zero ? 'zero' : '') + '" data-act="cfdoc" data-tab="' + r.tabId + '" data-rowid="' + r.rowId + '" data-field="' + dd.field + '" title="' + (DOC_LABELS[dd.field] || '') + '">' + esc(DOC_LABELS[dd.field] || '') + ' ' + (dd.zero ? (dd.no === '0' ? '0 חסר' : 'חסר') : esc(dd.no)) + '</span> ').join('') + '</td>' +
         '<td><span class="status ' + (r.status === 'actual' ? 'yes' : 'fc') + '">' + (r.status === 'actual' ? 'בפועל' : 'צפוי') + '</span></td></tr>';
@@ -5216,7 +5248,7 @@ function renderSettings(v) {
     '<div class="form-row"><label>יתרת פתיחה (עו״ש)</label><input data-set="openingBalance" data-kind="num" value="' + esc(fmtMoney(st.openingBalance)) + '" style="direction:ltr"></div>' +
     '<div class="form-row"><label>מע״מ ברירת מחדל לשורה חדשה %</label><input data-set="vatDefault" data-kind="num" value="' + esc(st.vatDefault) + '" style="direction:ltr"></div>' +
     '<div class="form-row"><label>תעריף ק״מ (משהב״ט)</label><input data-set="kmRate" data-kind="num" value="' + esc(st.kmRate) + '" style="direction:ltr"></div>' +
-    '<div class="form-row"><label>ימים בין קבלת הכסף לתשלום לספק</label><input data-set="supplierPayOffsetDays" data-kind="num" value="' + esc(st.supplierPayOffsetDays) + '" style="direction:ltr"><div class="hint">תאריך תשלום לספק = תאריך ח. מס קבלה של אטלס + מספר ימים זה (ניתן לדריסה בשורה)</div></div>' +
+    '<div class="form-row"><label>ימים בין קבלת הכסף לתשלום לספק</label><input data-set="supplierPayOffsetDays" data-kind="num" value="' + esc(st.supplierPayOffsetDays) + '" style="direction:ltr"><div class="hint">תאריך תשלום לספק = תאריך קבלת הכסף באטלס + מספר ימים זה (ניתן לדריסה בשורה).<br>תאריך ח. מס קבלה של הספק נרשם בעמודה נפרדת "תאריך ח. ספק" לתיעוד בלבד ואינו משפיע על התזרים.</div></div>' +
 
     '<div class="form-row"><label>ברירת מחדל בתזרים</label><select data-set="includeForecast" data-kind="bool"><option value="1"' + (st.includeForecast ? ' selected' : '') + '>כולל תנועות צפויות</option><option value="0"' + (!st.includeForecast ? ' selected' : '') + '>בפועל בלבד</option></select></div>' +
     '<div class="form-row"><label>שמירה אוטומטית</label><select data-set="autosave" data-kind="bool"><option value="1"' + (st.autosave ? ' selected' : '') + '>פעילה (שנייה לאחר כל שינוי)</option><option value="0"' + (!st.autosave ? ' selected' : '') + '>כבויה – שמירה בכפתור בלבד</option></select></div>' +
@@ -5490,9 +5522,6 @@ function createTestData() {
     { year: y, month: '01', dealNo: '101', taxReceiptNo: '5001', net: 10000, submitted: addDays(t0, -70), term: '45', hasSupplier: true, supplierPct: 15, supplierDocNo: '0', notes: 'שורת בדיקה – התקבל' },
     { year: y, month: '02', dealNo: '102', net: 8000, offDed: 500, submitted: addDays(t0, -10), term: '60', hasSupplier: false, notes: 'שורת בדיקה – ללא ספק (ספק נכנס בהמשך)' }
   ], { client: 'לקוח בדיקה', termDays: 45, supplierPctDefault: 15 });
-  mk('regular', 'בדיקה – רגיל', 'אחראי בדיקה', [
-    { year: y, month: '05', dealNo: '301', taxReceiptNo: '7001', net: 4000, submitted: addDays(t0, -40), notes: 'הכנסה פשוטה' }
-  ], { client: 'לקוח בדיקה', termDays: 30 });
   mk('mod', 'בדיקה – משהב״ט', 'אחראי בדיקה', [
     { year: y, month: '03', orderNo: '444-000-0000', dealNo: '201', taxReceiptNo: '6001', hours: 4.8, rate: 280, km: 90, offroad: 100, submitted: addDays(t0, -50), term: '45', supplierPct: 10, supplierDocNo: '777', supplierPaid: true },
     { year: y, month: '04', dealNo: '202', hours: 10, rate: 280, km: 150, submitted: addDays(t0, -5), term: '90', supplierPct: 10, ov: { total: 4000 } }
