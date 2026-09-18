@@ -365,6 +365,11 @@ table.msum tfoot td{background:var(--gold-soft);font-weight:700}
 .bulk-bar .muted{color:#c9d3ea}
 .bulk-bar .pl{display:flex;align-items:center;gap:6px;font-size:12.5px}
 .bulk-bar select{height:30px;border-radius:8px;border:1px solid #3a4f86;background:#2b3d6b;color:#fff;padding:0 8px;font-family:inherit}
+.grid tr.bankgrp td{background:#fdf0b5!important;color:#1b2233!important;font-weight:700;border-color:#e6d284}
+.grid tr.bankgrp td .muted,.grid tr.bankgrp td a{color:#4a4526!important}
+.grid tr.bankgrp td .grp-toggle{background:rgba(0,0,0,.08);color:#1b2233;border-color:#c9b46b}
+.grid tr.bankgrp td .status.yes{background:#0f7a35;color:#fff}
+.grid tr.bankdet td{background:#fffbe8!important}
 .grid tr.authgrp td{background:#1d5fbf!important;color:#fff!important;font-weight:700;border-color:#17509f}
 .grid tr.authgrp td .muted,.grid tr.authgrp td a{color:#e8f0ff!important}
 .grid tr.authgrp td .status.yes{background:#0f7a35;color:#fff}
@@ -373,13 +378,20 @@ table.msum tfoot td{background:var(--gold-soft);font-weight:700}
 .grid tr.authdet td{background:#e9f0fb!important}
 .grid tr.authdet.fcrow td{opacity:.85}
 .grid tr.dup-pick td{background:#fde8e8!important}
+.grid tr.viabank td{background:#e7f4ec!important}
+.grid tr.viabank td:first-child{box-shadow:inset -4px 0 0 #1e7d3a}
 .grid tr.waitcc td{background:#f2f7ff!important}
 .grid tr.waitcc td:first-child{box-shadow:inset -4px 0 0 #9bb8e6}
 .grid tr.viacredit td{background:#dce9fb!important}
 .grid tr.viacredit td input,.grid tr.viacredit td select{background:rgba(255,255,255,.65)}
 .grid tr.viacredit td:first-child{box-shadow:inset -4px 0 0 #1d5fbf}
-.grid tr.ccgrp td{background:#f4f1fb!important;font-weight:600}
-.grid tr.ccdet td{background:#fbfaff!important}
+.grid tr.ccgrp td{background:#121722!important;color:#fff!important;font-weight:700;border-color:#2b3446}
+.grid tr.ccgrp td span,.grid tr.ccgrp td b,.grid tr.ccgrp td a{color:#fff!important}
+.grid tr.ccgrp td .grp-toggle{background:rgba(255,255,255,.18);color:#fff;border-color:rgba(255,255,255,.55)}
+.grid tr.ccgrp td .status.yes{background:rgba(255,255,255,.2);color:#fff!important;border-color:rgba(255,255,255,.5)}
+.grid tr.ccgrp td .status.fc{background:rgba(255,255,255,.12);color:#fff!important;border-color:rgba(255,255,255,.4)}
+.grid tr.ccdet td{background:#eef0f4!important}
+.grid tr.cctx td{background:#f7f8fa!important}
 .grid tr.cctx td{font-size:12.5px}
 .grid th .sort-h{color:inherit;text-decoration:none}
 .grid th .sort-h:hover{text-decoration:underline}
@@ -698,6 +710,8 @@ const AUTHORITIES = [
   { name: 'רשות אחרת', code: '', dir: 'pay' }
 ];
 const AUTH_METHODS = ['העברה בנקאית', 'הוראת קבע', 'זיכוי בנקאי', 'שובר תשלום', 'כרטיס אשראי', 'שיק', 'אחר'];
+/* אמצעי תשלום שעוברים דרך חשבון הבנק – התנועה נרשמת בחוצץ הבנק ומשם לתזרים */
+const AUTH_BANK_METHODS = ['העברה בנקאית', 'הוראת קבע', 'זיכוי בנקאי', 'שובר תשלום', 'שיק'];
 const COLS = {
   yazam: [
     { key: 'serial', label: 'מס״ד', type: 'serial' },
@@ -877,7 +891,7 @@ const COLS = {
     { key: 'notes', label: 'הערה', type: 'text', w: 'l' }
   ]
 };
-const CREDIT_CATEGORIES = ['כללי', 'דלק ורכב', 'תוכנה ומנויים', 'ציוד משרדי', 'תקשורת', 'נסיעות', 'כיבוד', 'רשויות', 'עמלות', 'אחר'];
+const CREDIT_CATEGORIES = ['כללי', 'דלק ורכב', 'תוכנה ומנויים', 'ציוד משרדי', 'תקשורת', 'נסיעות', 'כיבוד', 'רו״ח', 'ביטוח', 'ספורט', 'רשויות', 'עמלות', 'אחר'];
 const TOGGLE_LABELS = { supplierPaid: ['טרם שולם', 'שולם'], status: ['טרם שולם', 'שולם'] };
 const OVERRIDABLE_NUM = { yazam: ['supplierPay'], mod: ['kmMonth', 'total', 'supplierPay'], regular: [], freelancer: [] };
 const FORMULA = {
@@ -1025,11 +1039,16 @@ function calcRow(kind, row) {
     c.cfDate = src ? (src.chargeDate || src.txDate || '') : (row.status ? (row.payDate || row.dueDate || '') : (row.dueDate || row.payDate || ''));
     // שורה שהוזנה מראש ומיועדת לחיוב בכרטיס – מוצגת כצפויה עד שתשויך לעסקת האשראי
     c.expectCredit = !row.creditRowId && row.method === 'כרטיס אשראי';
+    // תשלום שבוצע דרך חשבון הבנק – התנועה מגיעה לתזרים משורת הבנק המקושרת
+    c.viaBank = !!row.bankRowId && S.ops.bank.rows.some(b => b.id === row.bankRowId);
+    if (row.bankRowId && !c.viaBank) c.srcMissing = true;
+    c.bankMethod = AUTH_BANK_METHODS.includes(row.method || '');
     c.authStatus = c.viaCredit ? (c.isCredit ? 'זיכוי בכרטיס' : 'שולם בכרטיס אשראי')
-      : c.expectCredit && !row.status ? 'צפוי · יחויב בכרטיס'
-        : (row.status ? (c.isCredit ? 'התקבל' : 'שולם') : (c.isCredit ? 'טרם התקבל' : 'טרם שולם'));
-    // אין כפילות בתזרים: תנועה ששולמה בכרטיס נכללת כבר בחיוב החודשי של הכרטיס
-    c.inCashflow = !c.viaCredit && !!(c.cfDate && c.amount);
+      : c.viaBank ? (c.isCredit ? 'התקבל לבנק' : 'שולם דרך הבנק')
+        : c.expectCredit && !row.status ? 'צפוי · יחויב בכרטיס'
+          : (row.status ? (c.isCredit ? 'התקבל' : 'שולם') : (c.isCredit ? 'טרם התקבל' : 'טרם שולם'));
+    // אין כפילות בתזרים: תנועה ששולמה בכרטיס או שנרשמה בחוצץ הבנק נספרת שם
+    c.inCashflow = !c.viaCredit && !c.viaBank && !!(c.cfDate && c.amount);
   } else if (kind === 'credit') {
     const today = todayISO();
     const d = row.chargeDate || row.txDate || '';
@@ -1044,6 +1063,22 @@ function calcRow(kind, row) {
     c.isAuth = !!(row.authType || row.category === 'רשויות');
     c.inCashflow = !!(d && c.amount);
   } else if (kind === 'bank') {
+    // שורה שמקורה בחוצץ רשויות – הסכום, הכיוון והתאריך נגזרים משורת הרשות
+    const asrc = row.authRowId ? S.ops.authorities.rows.find(x => x.id === row.authRowId) : null;
+    c.fromAuth = !!row.authRowId;
+    c.authMissing = !!row.authRowId && !asrc;
+    if (asrc) {
+      const ac = calcRow('authorities', asrc);
+      c.income = ac.isCredit ? ac.amount : 0;
+      c.expense = ac.isCredit ? 0 : ac.amount;
+      c.both = false;
+      c.dir = ac.isCredit ? 'in' : 'out';
+      c.amount = ac.amount;
+      c.authName = ac.authName;
+      c.cfDate = asrc.payDate || asrc.dueDate || row.date || '';
+      c.inCashflow = !!(c.cfDate && c.amount);
+      return c;
+    }
     // ממלאים רק צד אחד: הכנסה או הוצאה. הכיוון והסכום נגזרים מהם.
     const inc = Math.abs(nz(row.income)), exp = Math.abs(nz(row.expense));
     c.income = inc; c.expense = exp;
@@ -1121,8 +1156,9 @@ function buildCashflow() {
     const c = calcRow('bank', row);
     if (!c.inCashflow) continue;
     // "עבור איזה חודש" הוא מידע ניהולי בלבד – התזרים נקבע תמיד לפי התאריך בפועל
-    const forM = row.forMonth && row.forMonth !== row.date.slice(0, 7) ? ' · עבור ' + row.forMonth.slice(5) + '.' + row.forMonth.slice(0, 4) : '';
-    push(Object.assign(opsRef('bank', row), { key: 'bank|' + row.id, dir: c.dir, role: row.txType || 'תנועה בנקאית', amount: c.amount, date: row.date, status: row.date <= today ? 'actual' : 'forecast', entity: row.party || 'בנק', client: 'בנק', desc: (row.description || '') + forM, docs: row.docNo ? [{ field: 'docNo', no: row.docNo }] : [] }));
+    const d = c.cfDate || row.date;
+    const forM = row.forMonth && row.forMonth !== d.slice(0, 7) ? ' · עבור ' + row.forMonth.slice(5) + '.' + row.forMonth.slice(0, 4) : '';
+    push(Object.assign(opsRef('bank', row), { key: 'bank|' + row.id, bankGroup: 1, dir: c.dir, role: row.txType || 'תנועה בנקאית', amount: c.amount, date: d, status: d <= today ? 'actual' : 'forecast', entity: (c.fromAuth ? c.authName : row.party) || 'בנק', client: 'בנק', desc: (row.description || '') + forM, docs: row.docNo ? [{ field: 'docNo', no: row.docNo }] : [] }));
   }
   // אשראי: שורה אחת לכל חיוב חודשי של כרטיס (סכום העסקאות פחות הזיכויים), לפי מועד החיוב בבנק
   const groups = {};
@@ -1915,6 +1951,7 @@ function renderTab(v, t) {
   h += summariesHTML(t, items);
   h += docBarHTML(t);
   if (t.kind === 'freelancer') h += '<div class="layout-side"><div class="main-col">' + gridHTML(t, items) + '</div>' + yearPanelHTML(t, items) + '</div>';
+  else if (t.kind === 'bank') h += gridHTML(t, items, { rowClass: (row, c) => c.fromAuth ? 'viabank' : '' });
   else h += gridHTML(t, items);
   v.innerHTML = yearsDatalist() + (t.kind === 'bank' ? bankPartyList() : '') + '<div id="msgs"></div>' + h;
 }
@@ -1929,6 +1966,8 @@ function tabMessagesHTML(t, items) {
     const both = t.rows.filter(r => Math.abs(nz(r.income)) > 0 && Math.abs(nz(r.expense)) > 0).length;
     const noDate = t.rows.filter(r => (Math.abs(nz(r.income)) || Math.abs(nz(r.expense))) && !r.date).length;
     const noAmt = t.rows.filter(r => r.date && !Math.abs(nz(r.income)) && !Math.abs(nz(r.expense))).length;
+    const fromAuth = t.rows.filter(r => r.authRowId).length;
+    if (fromAuth) m.push(['info', fromAuth + ' תנועות מגיעות מחוצץ ״רשויות״ (רקע ירקרק) – הסכום והתאריך מתעדכנים משם, ואפשר לערוך אותם גם כאן.']);
     if (both) m.push(['err', both + ' שורות עם הכנסה והוצאה יחד – יש למלא רק צד אחד (התזרים סופר את ההכנסה בלבד).']);
     if (noDate) m.push(['warn', noDate + ' תנועות ללא תאריך בפועל – לא ייכנסו לתזרים עד להזנת תאריך.']);
     if (noAmt) m.push(['info', noAmt + ' שורות ללא סכום.']);
@@ -2061,8 +2100,9 @@ async function readPdfDate(file) {
 /* לאיזה שדה תאריך בשורה שייך המסמך */
 function docDateTarget(t, field) {
   if (['yazam', 'mod', 'regular'].includes(t.kind)) {
-    if (field === 'dealNo' || field === 'taxInvNo') return { key: 'submitted', label: 'הוגש', ov: false };
-    if (field === 'taxReceiptNo' || field === 'receiptNo') return { key: 'moneyDate', label: 'תאריך קבלת הכסף', ov: true };
+    // מסמכי אטלס (עסקה / מס / מס קבלה / קבלה): תאריך המסמך הוא הצפי לתשלום, לא קבלת כסף בפועל
+    if (['dealNo', 'taxInvNo', 'taxReceiptNo', 'receiptNo'].includes(field))
+      return { key: 'expectedPay', label: 'צפי לתשלום', ov: false, also: (field === 'dealNo' || field === 'taxInvNo') ? { key: 'submitted', label: 'הוגש' } : null };
     if (field === 'supplierDocNo') return { key: 'supplierPayDate', label: 'תאריך תשלום לספק', ov: true };
   }
   if (t.kind === 'freelancer') return { key: 'payDate', label: 'תאריך תשלום', ov: false };
@@ -2150,6 +2190,7 @@ async function commitPdfLinks(t, files, bg) {
         setRowDate(p.row, tgt, p.docDate);
         notes.push(p.file.name + ': ' + tgt.label + ' עודכן ל-' + fmtDate(p.docDate) + ' לפי תאריך המסמך');
       }
+      if (tgt && tgt.also && !p.row[tgt.also.key]) p.row[tgt.also.key] = p.docDate;
     }
     const old = findDoc(t.tabId, p.row.id, p.field);
     if (old) delete S.docs[old.id];
@@ -2399,6 +2440,15 @@ function setField(t, rowId, key, raw, type, isOv) {
   if (t.kind === 'bank' && key === 'date' && val && !row.forMonth) row.forMonth = val.slice(0, 7);
   if ((t.kind === 'salaries' || t.kind === 'pensions' || t.kind === 'authorities') && key === 'payDate') delete row.payDateAuto;
   if (t.kind === 'authorities' && key === 'payDate' && val) row.status = true;
+  if (t.kind === 'authorities' && ['status', 'payDate', 'dueDate', 'amount', 'method', 'authType', 'authName', 'action', 'year', 'month'].includes(key)) setTimeout(() => { authBankSync(row); render(); }, 0);
+  if (t.kind === 'bank' && row.authRowId) {
+    const a = S.ops.authorities.rows.find(x => x.id === row.authRowId);
+    if (a) {
+      if (key === 'income' || key === 'expense') { a.amount = Math.abs(nz(val)); if (key === 'income') a.action = 'credit'; if (key === 'expense') a.action = 'pay'; }
+      if (key === 'date' && val) { a.payDate = val; a.status = true; }
+      setTimeout(() => { authBankSync(a); render(); }, 0);
+    }
+  }
   if (key === 'term' && val !== 'manual') delete row.expectedManual;
   if (UI.editing === rowId + ':' + key) UI.editing = null;
   markDirty();
@@ -2475,6 +2525,8 @@ $('#view').addEventListener('click', e => {
       confirmModal('מחיקת שורה', 'למחוק את שורה <b>' + esc(row.serial) + '</b> מחוצץ ' + esc(t.name) + '?<br><span class="muted">קישורי מסמכים של השורה יוסרו, והתנועות הנגזרות ממנה ייעלמו מהתזרים.</span>', 'מחיקה', () => {
         const i = t.rows.indexOf(row); t.rows.splice(i, 1);
         if (t.kind === 'credit') { const ar = S.ops.authorities.rows; const j = ar.findIndex(x => x.creditRowId === row.id); if (j >= 0) ar.splice(j, 1); }
+        if (t.kind === 'authorities' && row.bankRowId) S.ops.bank.rows = S.ops.bank.rows.filter(x => x.id !== row.bankRowId);
+        if (t.kind === 'bank' && row.authRowId) { const a = S.ops.authorities.rows.find(x => x.id === row.authRowId); if (a) { delete a.bankRowId; toast('התנועה נמחקה מהבנק · שורת הרשויות חזרה להופיע בתזרים ישירות', 'warn', 6000); } }
         if (t.kind === 'bank' && row.depId) { const dr = S.ops.bank.deposit.rows; const j = dr.findIndex(x => x.id === row.depId); if (j >= 0) dr.splice(j, 1); }
         for (const d of Object.values(S.docs)) if (d.tabId === t.tabId && d.rowId === row.id) delete S.docs[d.id];
         for (const k of Object.keys(S.anomalies)) if (k.startsWith(t.tabId + '|' + row.id + '|')) delete S.anomalies[k];
@@ -4138,6 +4190,8 @@ function renderAuthorities(v, t) {
   if (gapRows.length) msgs.push(['warn', gapRows.length + ' תשלומים שחויבו בסכום שונה מהצפי שהוזן מראש: ' +
     gapRows.slice(0, 4).map(r => { const c = calcRow('authorities', r); const d = r2(c.amount - nz(r.expectedAmount)); return esc(c.authName) + ' (צפי ' + fmtMoney(nz(r.expectedAmount)) + ' · בפועל ' + fmtMoney(c.amount) + ' · פער ' + (d > 0 ? '+' : '') + fmtMoney(d) + ')'; }).join(' · ') +
     (gapRows.length > 4 ? ' ועוד' : '') + '. הסכום בשורה עודכן לפי החיוב בפועל.']);
+  const viaBank = t.rows.filter(r => r.bankRowId && S.ops.bank.rows.some(b => b.id === r.bankRowId)).length;
+  if (viaBank) msgs.push(['info', viaBank + ' תשלומים באמצעי בנקאי נרשמו אוטומטית גם בחוצץ הבנק (רקע ירקרק) – בתזרים הם מופיעים דרך שורת הבנק בלבד, כך שאין כפילות.']);
   const orphan = t.rows.filter(r => r.creditRowId && !S.ops.credit.rows.some(x => x.id === r.creditRowId)).length;
   if (orphan) msgs.push(['warn', orphan + ' שורות מקושרות לעסקת אשראי שנמחקה.']);
   if (msgs.length) h += '<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px">' + msgs.map(x => '<div class="msg ' + x[0] + '">' + x[1] + '</div>').join('') + '</div>';
@@ -4202,7 +4256,7 @@ function renderAuthorities(v, t) {
   }
   h += gridHTML(t, items, {
     sort: st.sort, sortAct: 'authsort',
-    rowClass: (row, c) => c.viaCredit ? 'viacredit' : (c.expectCredit ? 'waitcc' : ''),
+    rowClass: (row, c) => c.viaCredit ? 'viacredit' : c.viaBank ? 'viabank' : (c.expectCredit ? 'waitcc' : ''),
     select: { has: id => aSel.has(id), act: 'authsel', allAct: 'authselall' }
   });
   v.innerHTML = yearsDatalist() + authCodesDatalist() + '<div id="msgs"></div>' + h;
@@ -4254,9 +4308,10 @@ function authAddModal() {
           dueDate: due, payDate: pay, status: !!pay, docNo: $('#auDoc', bg).value.trim(), notes: $('#auNote', bg).value.trim()
         });
         rows.push(r);
+        authBankSync(r);
         const st2 = authState(); st2.tab = 'month'; st2.month = (pay || due).slice(0, 7); st2.who = '';
         markDirty(); navigate('ops:authorities', r.id);
-        toast('הפעולה נוספה' + (r.status ? ' ונכנסה לתזרים' : ' כתנועה צפויה'), 'ok');
+        toast('הפעולה נוספה' + (r.bankRowId ? ' · נרשמה גם בחוצץ הבנק ומשם לתזרים' : r.status ? ' ונכנסה לתזרים' : ' כתנועה צפויה'), 'ok', 5000);
       }
     }, { label: 'ביטול' }]
   });
@@ -4314,6 +4369,45 @@ function authAction(act, el, e, t) {
     }
   }
 }
+
+/* ---------- סנכרון רשויות ⇄ בנק ----------
+   תשלום לרשות באמצעי בנקאי נרשם כשורה בחוצץ הבנק, ומשם הוא נכנס לתזרים.
+   שורת הרשות עצמה מפסיקה לייצר תנועה, כדי שלא תהיה כפילות. */
+function authBankRowOf(row) { return row.bankRowId ? S.ops.bank.rows.find(b => b.id === row.bankRowId) : null; }
+function authBankSync(row) {
+  const c = calcRow('authorities', row);
+  const shouldLink = !row.creditRowId && c.bankMethod && !!row.status && !!(row.payDate || row.dueDate);
+  let b = authBankRowOf(row);
+  if (!shouldLink) {
+    if (b) { S.ops.bank.rows = S.ops.bank.rows.filter(x => x.id !== b.id); }
+    delete row.bankRowId;
+    markDirty();
+    return;
+  }
+  const date = row.payDate || row.dueDate;
+  const amt = Math.abs(nz(row.amount));
+  if (!b) {
+    // אם כבר קיימת תנועה מתאימה בבנק (אותו תאריך ואותו סכום) – מתחברים אליה במקום ליצור כפילות
+    b = S.ops.bank.rows.find(x => !x.authRowId && x.date === date && Math.abs(Math.abs(nz(x.income)) + Math.abs(nz(x.expense)) - amt) < 0.5);
+    if (!b) {
+      b = newRow('bank');
+      b.serial = nextSerial(S.ops.bank.rows);
+      S.ops.bank.rows.push(b);
+    }
+    b.authRowId = row.id;
+    row.bankRowId = b.id;
+  }
+  Object.assign(b, {
+    date, forMonth: (row.year && row.month) ? row.year + '-' + row.month : date.slice(0, 7),
+    txType: c.isCredit ? 'זיכוי מרשות' : 'תשלום לרשויות',
+    party: c.authName,
+    description: [c.isCredit ? 'זיכוי' : 'תשלום', c.authName, (row.month && row.year) ? 'תקופה ' + row.month + '/' + row.year : '', row.method || ''].filter(Boolean).join(' · '),
+    docNo: b.docNo || row.docNo || ''
+  });
+  if (c.isCredit) { b.income = amt; b.expense = null; } else { b.expense = amt; b.income = null; }
+  markDirty();
+}
+function authBankSyncAll() { S.ops.authorities.rows.forEach(r => { if (r.bankRowId || (calcRow('authorities', r).bankMethod && r.status)) authBankSync(r); }); }
 /* =====================================================================
    כ״א · רישום אנשים אחיד (עובדים + עצמאיים) · כרטיס אדם מרכז
    ===================================================================== */
@@ -4724,6 +4818,36 @@ function renderCashflow(v) {
         }
         continue;
       }
+      if (r.bankGroup) {
+        // בנק: כל תנועות הבנק בחודש בשורה אחת שניתן להרחיב ולכווץ
+        const monthBk = g.rs.filter(x => x.bankGroup);
+        if (monthBk[monthBk.length - 1] !== r) continue;
+        const net = r2(monthBk.reduce((a, x) => a + (x.dir === 'in' ? -x.amount : x.amount), 0));
+        const openB = !!(UI.bankOpen && UI.bankOpen[g.m]);
+        const inc = r2(monthBk.reduce((a, x) => a + (x.dir === 'in' ? x.amount : 0), 0));
+        const exp = r2(monthBk.reduce((a, x) => a + (x.dir === 'out' ? x.amount : 0), 0));
+        const fcB = monthBk.filter(x => x.status === 'forecast').length;
+        const n0 = monthBk[0].n, n1 = monthBk[monthBk.length - 1].n;
+        h += '<tr class="bankgrp"><td>' + n0 + (n1 !== n0 ? '–' + n1 : '') + '</td><td class="num">' + fmtDate(r.date) + '</td><td class="num">' + cfText(r, 'month') + '</td>' +
+          '<td>' + (net < 0 ? '▲ הכנסה' : '▼ הוצאה') + '</td>' +
+          '<td class="num">' + (inc ? fmtMoney(inc) : '') + '</td><td class="num">' + (exp ? fmtMoney(exp) : '') + '</td>' +
+          '<td class="num auto"><b>' + fmtMoney(r.balance) + '</b></td><td class="h-group">תפעול</td>' +
+          '<td class="h-client">בנק</td>' +
+          '<td class="h-proj"><button class="grp-toggle" data-act="cfbanktoggle" data-k="' + esc(g.m) + '" title="' + (openB ? 'כיווץ תנועות הבנק' : 'הרחבת תנועות הבנק בחודש') + '">' + (openB ? '−' : '+') + '</button> <a href="#" data-act="cfsrc" data-tab="ops:bank" data-rowid="' + r.rowId + '">בנק</a></td>' +
+          '<td>תנועות בנק</td><td>' + monthBk.length + ' תנועות · נטו ' + fmtMoney(Math.abs(net)) + (fcB ? ' · ' + fcB + ' עתידיות' : '') + '</td><td></td>' +
+          '<td><span class="status ' + (fcB === monthBk.length ? 'fc' : fcB ? 'fc' : 'yes') + '">' + (fcB === monthBk.length ? 'עתידי' : fcB ? 'חלקי עתידי' : 'בפועל') + '</span></td></tr>';
+        if (openB) for (const x of monthBk) {
+          h += '<tr class="bankdet"><td class="muted">' + x.n + '</td><td class="num">' + fmtDate(x.date) + '</td><td></td>' +
+            '<td>' + (x.dir === 'in' ? 'הכנסה' : 'הוצאה') + '</td>' +
+            '<td class="num">' + (x.dir === 'in' ? fmtMoney(x.amount) : '') + '</td><td class="num">' + (x.dir === 'out' ? fmtMoney(x.amount) : '') + '</td>' +
+            '<td class="num muted" title="היתרה מחושבת פעם אחת בשורת החודש">—</td><td></td><td class="h-client"><b>' + esc(x.entity) + '</b></td>' +
+            '<td class="h-proj"><a href="#" data-act="cfsrc" data-tab="ops:bank" data-rowid="' + x.rowId + '">בנק</a>' + (x.serial ? ' <span class="muted">· ' + x.serial + '</span>' : '') + '</td>' +
+            '<td>' + esc(x.role) + '</td><td class="muted">' + esc(x.desc) + '</td>' +
+            '<td>' + (x.docs || []).map(dd => '<span class="chip" data-act="cfdoc" data-tab="' + x.tabId + '" data-rowid="' + x.rowId + '" data-field="' + dd.field + '">' + esc(DOC_LABELS[dd.field] || '') + ' ' + esc(dd.no) + '</span> ').join('') + '</td>' +
+            '<td><span class="status ' + (x.status === 'actual' ? 'yes' : 'fc') + '">' + (x.status === 'actual' ? 'בפועל' : 'צפוי') + '</span></td></tr>';
+        }
+        continue;
+      }
       if (r.authGroup) {
         // רשויות: כל תנועות הרשויות בחודש בשורה אחת שניתן להרחיב ולכווץ
         const monthAu = g.rs.filter(x => x.authGroup);
@@ -4840,6 +4964,7 @@ function viewAction(act, el, e) {
     case 'ccauthmatch': e.preventDefault && e.preventDefault(); ccAuthMatchModal(false); break;
     case 'cfcctoggle': { UI.ccOpen = UI.ccOpen || {}; UI.ccOpen[el.dataset.k] = !UI.ccOpen[el.dataset.k]; render(); break; }
     case 'cfauthtoggle': { UI.authOpen = UI.authOpen || {}; UI.authOpen[el.dataset.k] = !UI.authOpen[el.dataset.k]; render(); break; }
+    case 'cfbanktoggle': { UI.bankOpen = UI.bankOpen || {}; UI.bankOpen[el.dataset.k] = !UI.bankOpen[el.dataset.k]; render(); break; }
     case 'cfccmonth': { UI.ccMonthOpen = UI.ccMonthOpen || {}; UI.ccMonthOpen[el.dataset.k] = !UI.ccMonthOpen[el.dataset.k]; if (!UI.ccMonthOpen[el.dataset.k]) UI.ccOpen = {}; render(); break; }
     case 'cfmode': { const p = cfPeriod(); p.mode = el.dataset.mode; if (p.mode === 'range' && p.fromDate > p.toDate) [p.fromDate, p.toDate] = [p.toDate, p.fromDate]; saveCfPeriod(); UI.cfCollapsed = {}; render(); break; }
     case 'cfprev': case 'cfnext': { const p = cfPeriod(); const nm = monthAdd(p.month, act === 'cfprev' ? -1 : 1); if (nm < CAL_MIN_YEAR + '-01') return; p.month = nm; saveCfPeriod(); render(); break; }
