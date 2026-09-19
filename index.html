@@ -67,6 +67,9 @@ input,select,textarea{font-family:inherit;font-size:13px}
 .tb-btn:hover{background:#3a4f86}
 .tb-btn.gold{background:var(--gold);color:var(--navy);font-weight:700}
 #saveState{font-size:12px;white-space:nowrap}
+#syncState{font-size:12px;white-space:nowrap}
+#syncState.sync-ok{color:#8fe3a6}#syncState.sync-wait{color:#ffd37a}#syncState.sync-err{color:#ff9a9a}
+.sync-rules{direction:ltr;text-align:left;background:#f6f7fb;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:11.5px;overflow:auto;max-height:190px;margin:6px 0 0}
 #saveState.dirty{color:#ffd37a}#saveState.ok{color:#8fe3a6}#saveState.err{color:#ff9a9a}
 .badge{display:inline-block;min-width:18px;padding:0 5px;border-radius:9px;background:var(--red);color:#fff;font-size:11px;text-align:center;margin-inline-start:4px}
 
@@ -475,6 +478,7 @@ table.msum tfoot td{background:var(--gold-soft);font-weight:700}
   #topbar{height:52px;gap:8px;padding:0 10px}
   #topbar .brand{font-size:17px}
   #topbar .brand small,#topbar .pill-gold,#topbar .tb-stat,#saveState,#tbBackup,#tbRestore,#tbAnomalies,#tbSettings{display:none}
+  #syncState{font-size:11px}
   #searchBox{max-width:none;min-width:0}
   #searchBox input{padding:7px 12px;font-size:16px}
   #sidebar{top:52px;width:min(290px,84vw);transform:translateX(105%);transition:transform .22s ease;box-shadow:-8px 0 24px rgba(0,0,0,.22);padding-bottom:40px}
@@ -539,6 +543,7 @@ table.msum tfoot td{background:var(--gold-soft);font-weight:700}
   <div id="searchBox"><input id="searchInput" type="text" placeholder="חיפוש בכל המערכת…" autocomplete="off"><div id="searchResults" class="hidden"></div></div>
   <div class="tb-spacer"></div>
   <span id="saveState" class="ok">—</span>
+  <span id="syncState" class="hidden"></span>
   <button class="tb-btn gold" id="tbSave">💾 שמירה</button>
   <button class="tb-btn" id="tbBackup">⬇ גיבוי JSON</button>
   <button class="tb-btn" id="tbRestore">⬆ טעינת JSON</button>
@@ -703,6 +708,7 @@ function saveNow(silent) {
     const t = new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
     setSaveState('ok', '✓ נשמר ואומת ' + t);
     if (!silent) toast('הנתונים נשמרו ואומתו (' + Math.round(bytes / 1024) + ' KB)', 'ok');
+    if (typeof syncSchedulePush === 'function') syncSchedulePush();
     return true;
   } catch (e) {
     setSaveState('err', '✗ השמירה נכשלה');
@@ -4779,6 +4785,412 @@ function personAction(act, el, e) {
   }
 }
 /* =====================================================================
+   סנכרון ענן (Firebase Realtime Database) – אותם נתונים בכל המכשירים
+   • הנתונים ממשיכים להישמר מקומית בדפדפן (עבודה גם בלי אינטרנט)
+   • בנוסף הם נשמרים ב-Realtime Database ומתעדכנים בזמן אמת בכל מכשיר מחובר
+   • המצב מפוצל ליחידות קטנות (מטא, מסמכים, כל חוצץ תפעול, כל פרויקט)
+     כדי לא לחרוג ממגבלת המסמך ולשלוח רק את מה שהשתנה
+   ===================================================================== */
+'use strict';
+
+const SYNC_CFG_KEY = 'atlas_sync_cfg_cash2027_rtdb';
+const SYNC_DEV_KEY = 'atlas_device_id';
+const SYNC_SDK_BASE = 'https://www.gstatic.com/firebasejs/10.12.2/';
+const SYNC_CHUNK = 700000;
+// Shared Firebase connection for this published page. No sign-in is required.
+const SYNC_DEFAULT_CFG = {
+  apiKey: 'AIzaSyB6mKKIlcsKYD6HZFnoB6_7LaHCUl2xDQ4',
+  authDomain: 'cash2027-61bf4.firebaseapp.com',
+  databaseURL: 'https://cash2027-61bf4-default-rtdb.europe-west1.firebasedatabase.app',
+  projectId: 'cash2027-61bf4',
+  storageBucket: 'cash2027-61bf4.firebasestorage.app',
+  messagingSenderId: '668967330968',
+  appId: '1:668967330968:web:eb576ebe2a242395821ced',
+  measurementId: 'G-35LS7CJWJ1',
+  mode: 'open',
+  space: 'cash2027-shared'
+};
+
+const Sync = {
+  cfg: null, db: null, auth: null, user: null,
+  on: false, state: 'off', err: '', last: null,
+  unsub: null, pushTimer: null, sent: {}, rev: {}, busy: false, deviceId: ''
+};
+
+function syncDeviceId() {
+  if (Sync.deviceId) return Sync.deviceId;
+  let d = '';
+  try { d = localStorage.getItem(SYNC_DEV_KEY) || ''; } catch (e) { }
+  if (!d) { d = 'dev_' + Math.random().toString(36).slice(2, 9); try { localStorage.setItem(SYNC_DEV_KEY, d); } catch (e) { } }
+  Sync.deviceId = d;
+  return d;
+}
+function syncCfgLoad() {
+  try {
+    const s = localStorage.getItem(SYNC_CFG_KEY);
+    Sync.cfg = s === null ? SYNC_DEFAULT_CFG : JSON.parse(s);
+  } catch (e) { Sync.cfg = SYNC_DEFAULT_CFG; }
+  return Sync.cfg;
+}
+function syncCfgSave(cfg) {
+  Sync.cfg = cfg;
+  try { localStorage.setItem(SYNC_CFG_KEY, JSON.stringify(cfg)); } catch (e) { }
+}
+/* קבלת הגדרות Firebase כפי שהן מועתקות מהקונסולה (אובייקט JS או JSON) */
+function syncParseCfg(text) {
+  const s = String(text || '').trim().replace(/^[^{]*/, '').replace(/[^}]*$/, '');
+  if (!s) return null;
+  let o = null;
+  try { o = JSON.parse(s); } catch (e) {
+    if (/[;`]|=>|\bfunction\b/.test(s)) return null;
+    try { o = Function('"use strict";return (' + s + ')')(); } catch (e2) { return null; }
+  }
+  if (!o || typeof o !== 'object' || !o.apiKey || !o.projectId) return null;
+  const keep = ['apiKey', 'authDomain', 'projectId', 'storageBucket', 'messagingSenderId', 'appId', 'databaseURL', 'measurementId'];
+  const out = {};
+  keep.forEach(k => { if (o[k]) out[k] = String(o[k]); });
+  return out;
+}
+
+/* ---------- מצב עבודה: ללא התחברות (מרחב משותף) או עם משתמש וסיסמה ---------- */
+function syncMode() { return (Sync.cfg && Sync.cfg.mode === 'auth') ? 'auth' : 'open'; }
+function syncSpace() { return (Sync.cfg && Sync.cfg.space) || 'atlas'; }
+function syncNewSpace() { return 'atlas-' + Math.random().toString(36).slice(2, 8) + Math.random().toString(36).slice(2, 8); }
+
+/* ---------- פיצול המצב ליחידות סנכרון ---------- */
+function syncUnits() {
+  const u = {};
+  u['meta'] = { settings: S.settings, entityOrder: S.entityOrder, employees: S.employees, anomalies: S.anomalies, createdAt: S.createdAt };
+  u['docs'] = S.docs;
+  for (const k of Object.keys(S.ops)) u['ops~' + k] = S.ops[k];
+  for (const id of Object.keys(S.entities)) u['ent~' + id] = S.entities[id];
+  return u;
+}
+function syncApplyUnit(id, obj) {
+  if (!obj) return;
+  if (id === 'meta') {
+    S.settings = obj.settings || S.settings;
+    S.entityOrder = obj.entityOrder || [];
+    S.employees = obj.employees || [];
+    S.anomalies = obj.anomalies || {};
+    if (obj.createdAt) S.createdAt = obj.createdAt;
+  } else if (id === 'docs') S.docs = obj || {};
+  else if (id.indexOf('ops~') === 0) S.ops[id.slice(4)] = obj;
+  else if (id.indexOf('ent~') === 0) S.entities[id.slice(4)] = obj;
+}
+function syncDropUnit(id) {
+  if (id.indexOf('ent~') === 0) { const k = id.slice(4); delete S.entities[k]; S.entityOrder = S.entityOrder.filter(x => x !== k); }
+}
+function syncPack(obj) {
+  const s = JSON.stringify(obj === undefined ? null : obj);
+  const parts = [];
+  for (let i = 0; i < s.length; i += SYNC_CHUNK) parts.push(s.slice(i, i + SYNC_CHUNK));
+  return parts.length ? parts : [''];
+}
+function syncUnpack(d) {
+  try { return JSON.parse((d && d.p ? d.p : ['null']).join('')); } catch (e) { return null; }
+}
+function syncStateEmpty() {
+  return !S.entityOrder.length && !S.employees.length && Object.values(S.ops).every(o => !(o.rows || []).length);
+}
+
+/* ---------- טעינת ה-SDK ---------- */
+function syncLoadScript(src) {
+  return new Promise((res, rej) => {
+    if ($('script[data-sdk="' + src + '"]')) return res();
+    const s = document.createElement('script');
+    s.src = SYNC_SDK_BASE + src; s.dataset.sdk = src;
+    s.onload = () => res(); s.onerror = () => rej(new Error('טעינת ' + src + ' נכשלה'));
+    document.head.appendChild(s);
+  });
+}
+async function syncLoadSdk() {
+  if (window.__atlasFakeFirebase) { window.firebase = window.__atlasFakeFirebase; return; }
+  if (window.firebase && window.firebase.database) return;
+  await syncLoadScript('firebase-app-compat.js');
+  if (syncMode() === 'auth') await syncLoadScript('firebase-auth-compat.js');
+  await syncLoadScript('firebase-database-compat.js');
+}
+
+function syncSetState(state, err) {
+  Sync.state = state; Sync.err = err || '';
+  const el = $('#syncState');
+  if (el) {
+    const map = { off: ['', ''], connecting: ['☁ מתחבר…', 'sync-wait'], signin: ['☁ נדרשת התחברות', 'sync-wait'], on: ['☁ מסונכרן', 'sync-ok'], push: ['☁ שומר…', 'sync-wait'], err: ['☁ שגיאה', 'sync-err'] };
+    const [txt, cls] = map[state] || ['', ''];
+    el.textContent = txt; el.className = cls + (txt ? '' : ' hidden');
+    el.title = err || (Sync.user ? 'מחובר: ' + Sync.user.email : '');
+  }
+  if (UI.view === 'settings') renderSettings($('#view'));
+}
+
+/* ---------- חיבור ---------- */
+async function syncConnect() {
+  if (!syncCfgLoad()) { syncSetState('off'); return false; }
+  syncSetState('connecting');
+  try {
+    await syncLoadSdk();
+    if (!firebase.apps || !firebase.apps.length) firebase.initializeApp(Sync.cfg);
+    Sync.db = firebase.database();
+    if (syncMode() === 'open') {
+      Sync.auth = null;
+      Sync.user = { uid: syncSpace(), email: 'ללא התחברות' };
+      syncStart().catch(e => syncSetState('err', e.message));
+      return true;
+    }
+    Sync.auth = firebase.auth();
+    Sync.auth.onAuthStateChanged(u => {
+      Sync.user = u || null;
+      if (u) syncStart().catch(e => syncSetState('err', e.message));
+      else { syncStop(); syncSetState('signin'); }
+    });
+    return true;
+  } catch (e) { syncSetState('err', e.message); return false; }
+}
+async function syncSignIn(email, pw, createIfMissing) {
+  if (!Sync.auth) { const ok = await syncConnect(); if (!ok) return false; }
+  try {
+    await Sync.auth.signInWithEmailAndPassword(email, pw);
+    return true;
+  } catch (e) {
+    if (createIfMissing && /user-not-found|invalid-login|INVALID_LOGIN/i.test(e.code + ' ' + e.message)) {
+      try { await Sync.auth.createUserWithEmailAndPassword(email, pw); return true; } catch (e2) { syncSetState('err', e2.message); toast('יצירת המשתמש נכשלה: ' + e2.message, 'err', 7000); return false; }
+    }
+    syncSetState('err', e.message); toast('ההתחברות נכשלה: ' + e.message, 'err', 7000); return false;
+  }
+}
+async function syncSignOut() {
+  syncStop();
+  if (syncMode() === 'open') { Sync.user = null; Sync.sent = {}; Sync.rev = {}; syncSetState('off'); return; }
+  if (Sync.auth) { try { await Sync.auth.signOut(); } catch (e) { } }
+  Sync.user = null; Sync.sent = {}; Sync.rev = {};
+  syncSetState(Sync.cfg ? 'signin' : 'off');
+}
+function syncCol() { return Sync.db.ref('atlas/' + (syncMode() === 'open' ? syncSpace() : Sync.user.uid) + '/state'); }
+function syncStop() {
+  if (Sync.unsub) { try { Sync.unsub(); } catch (e) { } Sync.unsub = null; }
+  Sync.on = false;
+}
+
+/* ---------- סנכרון ראשון: החלטה לאיזה כיוון ---------- */
+async function syncStart() {
+  if (!Sync.db || !Sync.user) return;
+  syncSetState('connecting');
+  const col = syncCol();
+  const snap = await col.once('value');
+  const cloudEmpty = !snap.exists();
+  const localEmpty = syncStateEmpty();
+  if (cloudEmpty) { Sync.on = true; await syncPushNow(true); }
+  else if (localEmpty) { syncPullSnap(snap); Sync.on = true; }
+  else {
+    let cloudRows = 0;
+    snap.forEach(d => { cloudRows += (((d.val() || {}).p || []).join('').match(/"id":"r_/g) || []).length; });
+    const localRows = Object.values(S.entities).reduce((a, e) => a + e.rows.length, 0) + Object.values(S.ops).reduce((a, o) => a + (o.rows || []).length, 0);
+    const done = await new Promise(res => {
+      openModal({
+        title: 'סנכרון ראשון – יש נתונים בשני הצדדים',
+        body: '<p>גם במכשיר הזה וגם בענן כבר קיימים נתונים. יש לבחור מה הגרסה הנכונה – הצד השני יידרס.</p>' +
+          '<table class="simple"><tr><th></th><th>שורות</th></tr><tr><td>המכשיר הזה</td><td class="num">' + localRows + '</td></tr><tr><td>הענן</td><td class="num">≈' + cloudRows + '</td></tr></table>' +
+          '<p class="muted" style="font-size:12px">לפני דריסה יורד אוטומטית גיבוי JSON של המצב הנוכחי במכשיר.</p>',
+        buttons: [
+          { label: '⬆ העלאת המכשיר לענן', cls: 'primary', onClick: () => { res('push'); } },
+          { label: '⬇ הורדה מהענן למכשיר', onClick: () => { res('pull'); } },
+          { label: 'ביטול', onClick: () => { res('cancel'); } }
+        ]
+      });
+    });
+    if (done === 'cancel') { syncSetState('signin', 'הסנכרון לא הופעל'); return; }
+    doBackup();
+    if (done === 'push') {
+      Sync.on = true;
+      snap.forEach(d => {
+        const data = d.val() || {};
+        Sync.sent[d.key] = hashStr((data.p || []).join(''));
+        Sync.rev[d.key] = data.rev || 0;
+      });
+      await syncPushNow(true);
+    }
+    else { syncPullSnap(snap); Sync.on = true; }
+  }
+  const onError = e => syncSetState('err', e.message);
+  const onAdd = d => syncOnChild('added', d);
+  const onChange = d => syncOnChild('changed', d);
+  const onRemove = d => syncOnChild('removed', d);
+  col.on('child_added', onAdd, onError);
+  col.on('child_changed', onChange, onError);
+  col.on('child_removed', onRemove, onError);
+  Sync.unsub = () => {
+    col.off('child_added', onAdd);
+    col.off('child_changed', onChange);
+    col.off('child_removed', onRemove);
+  };
+  Sync.last = new Date();
+  syncSetState('on');
+}
+function syncPullSnap(snap) {
+  Sync.busy = true;
+  S = defaultState();
+  snap.forEach(d => {
+    const id = d.key, data = d.val() || {};
+    syncApplyUnit(id, syncUnpack(data));
+    Sync.rev[id] = data.rev || 0;
+    Sync.sent[id] = hashStr((data.p || []).join(''));
+  });
+  S = normalizeState(S);
+  Sync.busy = false;
+  saveNow(true);
+  render();
+}
+function syncOnChild(type, snap) {
+  if (!Sync.on) return;
+  const id = snap.key, d = snap.val() || {};
+  if (type === 'removed') {
+    syncDropUnit(id); delete Sync.rev[id]; delete Sync.sent[id];
+  } else {
+    if (d.by === syncDeviceId()) { Sync.rev[id] = d.rev; Sync.sent[id] = hashStr((d.p || []).join('')); return; }
+    if (Sync.rev[id] && d.rev <= Sync.rev[id]) return;
+    syncApplyUnit(id, syncUnpack(d));
+    Sync.rev[id] = d.rev;
+    Sync.sent[id] = hashStr((d.p || []).join(''));
+  }
+  S = normalizeState(S);
+  Sync.busy = true;
+  saveNow(true);
+  Sync.busy = false;
+  Sync.last = new Date();
+  render();
+  toast('התקבל עדכון ממכשיר אחר', 'ok');
+}
+
+/* ---------- שליחה ---------- */
+function syncSchedulePush() {
+  if (!Sync.on || Sync.busy) return;
+  clearTimeout(Sync.pushTimer);
+  Sync.pushTimer = setTimeout(() => { syncPushNow().catch(e => syncSetState('err', e.message)); }, 900);
+}
+async function syncPushNow(all) {
+  if (!Sync.on || !Sync.db || !Sync.user) return;
+  const col = syncCol();
+  const units = syncUnits();
+  const put = [];
+  for (const id of Object.keys(units)) {
+    const parts = syncPack(units[id]);
+    const h = hashStr(parts.join(''));
+    if (!all && Sync.sent[id] === h) continue;
+    put.push({ id, parts, h });
+  }
+  const gone = Object.keys(Sync.sent).filter(id => !(id in units));
+  if (!put.length && !gone.length) return;
+  syncSetState('push');
+  try {
+    for (const it of put) {
+      const rev = Date.now();
+      await col.child(it.id).set({ p: it.parts, rev, by: syncDeviceId() });
+      Sync.sent[it.id] = it.h; Sync.rev[it.id] = rev;
+    }
+    for (const id of gone) { await col.child(id).remove(); delete Sync.sent[id]; delete Sync.rev[id]; }
+    Sync.last = new Date();
+    syncSetState('on');
+  } catch (e) { syncSetState('err', e.message); throw e; }
+}
+
+/* ---------- ממשק בהגדרות ---------- */
+function syncRulesText() {
+  if (syncMode() === 'auth') {
+    return '{\n  "rules": {\n    "atlas": {\n      "$uid": {\n        ".read": "auth != null && auth.uid === $uid",\n        ".write": "auth != null && auth.uid === $uid"\n      }\n    }\n  }\n}';
+  }
+  return '{\n  "rules": {\n    "atlas": {\n      "' + syncSpace() + '": {\n        ".read": true,\n        ".write": true\n      }\n    }\n  }\n}';
+}
+function syncCardHTML() {
+  const cfg = Sync.cfg || syncCfgLoad();
+  let h = '<div class="setting-card" id="syncCard"><h3>סנכרון בין מכשירים (Firebase)</h3>';
+  if (!cfg) {
+    const space = Sync.newSpace || (Sync.newSpace = syncNewSpace());
+    h += '<p class="muted" style="font-size:13px;margin:0 0 8px">כרגע הנתונים נשמרים רק בדפדפן של המכשיר הזה. חיבור ל-Firebase ישמור אותם גם בענן ויציג אותם בנייד ובכל מכשיר אחר, בזמן אמת.</p>' +
+      '<div class="np-grid" style="max-width:720px;margin-bottom:10px">' +
+      '<label for="syncSpaceIn">מזהה מרחב הנתונים</label><div><input id="syncSpaceIn" dir="ltr" value="' + esc(space) + '"><div class="hint">הכתובת בענן: <span dir="ltr">atlas/&lt;מזהה&gt;/state</span>. בכל מכשיר נוסף מזינים בדיוק את אותו מזהה. כדאי להשאיר את המזהה האקראי – הוא מה שמונע מאחרים להגיע לנתונים כשאין סיסמה.</div></div>' +
+      '<label for="syncModeIn">אופן גישה</label><div><select id="syncModeIn"><option value="open" selected>ללא התחברות – האתר נגיש מיד</option><option value="auth">עם אימייל וסיסמה</option></select></div>' +
+      '</div>' +
+      '<div class="hint muted" style="margin-bottom:4px">מדביקים כאן את אובייקט <span dir="ltr">firebaseConfig</span> מתוך Project settings › General › Your apps › Web:</div>' +
+      '<textarea id="syncCfgIn" style="width:100%;height:110px;direction:ltr;font-family:monospace;font-size:12px" placeholder="{ apiKey: &quot;...&quot;, authDomain: &quot;...&quot;, projectId: &quot;...&quot;, appId: &quot;...&quot; }"></textarea>' +
+      '<div class="toolbar" style="margin-top:8px"><button class="btn primary" data-act="synccfg">שמירת ההגדרות וחיבור</button></div>' +
+      '<div class="hint muted">לפני החיבור: Realtime Database › Rules – מדביקים את הכללים הבאים ולוחצים Publish (משתנים לפי אופן הגישה שנבחר למעלה):</div>' +
+      '<pre class="sync-rules" dir="ltr" id="syncRulesBox">' + esc(syncRulesText()) + '</pre>' +
+      '<div class="msg warn" style="margin-top:8px;font-size:12.5px">במצב ״ללא התחברות״ כל מי שיודע את מזהה המרחב ואת פרטי הפרויקט יכול לקרוא ולשנות את הנתונים. המזהה האקראי הופך את זה ללא סביר בפועל, אבל זו לא הגנה אמיתית – כשתרצה, אפשר לעבור למצב אימייל וסיסמה בלחיצה.</div></div>';
+    return h;
+  }
+  const st = { off: 'לא פעיל', connecting: 'מתחבר…', signin: 'נדרשת התחברות', on: 'מסונכרן', push: 'שומר…', err: 'שגיאה' }[Sync.state] || Sync.state;
+  h += '<div class="kv" style="margin-bottom:10px">' +
+    '<div>פרויקט</div><div dir="ltr">' + esc(cfg.projectId) + '</div>' +
+    '<div>מצב</div><div>' + (Sync.state === 'on' ? '<span class="status yes">' + st + '</span>' : Sync.state === 'err' ? '<span class="status no">' + st + '</span>' : '<span class="status fc">' + st + '</span>') + (Sync.err ? ' <span class="muted">' + esc(Sync.err) + '</span>' : '') + '</div>' +
+    '<div>אופן גישה</div><div>' + (syncMode() === 'open' ? 'ללא התחברות' : 'אימייל וסיסמה') + '</div>' +
+    (syncMode() === 'open'
+      ? '<div>מרחב הנתונים</div><div dir="ltr">' + esc(syncSpace()) + '</div>'
+      : '<div>משתמש</div><div dir="ltr">' + (Sync.user ? esc(Sync.user.email) : '—') + '</div>') +
+    '<div>סונכרן לאחרונה</div><div>' + (Sync.last ? Sync.last.toLocaleString('he-IL') : '—') + '</div>' +
+    '<div>מזהה מכשיר</div><div dir="ltr">' + esc(syncDeviceId()) + '</div></div>';
+  if (syncMode() === 'auth' && !Sync.user) {
+    h += '<div class="np-grid" style="max-width:520px"><label for="syncEmail">אימייל</label><div><input id="syncEmail" type="email" dir="ltr" autocomplete="username"></div>' +
+      '<label for="syncPw">סיסמה</label><div><input id="syncPw" type="password" dir="ltr" autocomplete="current-password"></div></div>' +
+      '<div class="toolbar" style="margin-top:8px"><button class="btn primary" data-act="syncin">התחברות</button><button class="btn" data-act="syncnew">משתמש חדש</button><button class="btn danger" data-act="synccfgdel">מחיקת ההגדרות</button></div>';
+  } else {
+    h += '<div class="toolbar"><button class="btn gold" data-act="syncnow">⟳ סנכרון עכשיו</button>' +
+      (syncMode() === 'auth' ? '<button class="btn" data-act="syncout">התנתקות</button>' : '') +
+      '<button class="btn danger" data-act="synccfgdel">ניתוק המכשיר מהענן</button></div>' +
+      '<div class="hint muted">כל שינוי נשמר מקומית ומיד גם בענן. שינוי שנעשה במכשיר אחר מופיע כאן תוך שניות.</div>';
+  }
+  h += '<details style="margin-top:8px"><summary class="muted" style="font-size:12.5px;cursor:pointer">כללי האבטחה (Rules) לפרויקט הזה</summary><pre class="sync-rules" dir="ltr">' + esc(syncRulesText()) + '</pre></details>';
+  return h + '</div>';
+}
+function syncAction(act, el) {
+  switch (act) {
+    case 'synccfg': {
+      const cfg = syncParseCfg($('#syncCfgIn').value);
+      if (!cfg) { toast('ההגדרות אינן תקינות – יש להדביק את אובייקט firebaseConfig המלא', 'err', 6000); return true; }
+      const sp = (($('#syncSpaceIn') || {}).value || '').trim();
+      if (!/^[A-Za-z0-9_-]{3,60}$/.test(sp)) { toast('מזהה המרחב חייב להיות 3-60 תווים באנגלית, ספרות, מקף או קו תחתון', 'err', 6000); return true; }
+      cfg.space = sp;
+      cfg.mode = (($('#syncModeIn') || {}).value === 'auth') ? 'auth' : 'open';
+      syncCfgSave(cfg);
+      toast('ההגדרות נשמרו – מתחבר…', 'ok');
+      syncConnect().then(() => render());
+      return true;
+    }
+    case 'synccfgdel':
+      confirmModal('מחיקת הגדרות הסנכרון', 'הנתונים בענן לא יימחקו – רק החיבור מהמכשיר הזה. להמשיך?', 'מחיקה', () => {
+        syncSignOut().then(() => { syncCfgSave(null); Sync.db = null; Sync.auth = null; syncSetState('off'); render(); });
+      }, true);
+      return true;
+    case 'syncin': case 'syncnew': {
+      const email = ($('#syncEmail') || {}).value, pw = ($('#syncPw') || {}).value;
+      if (!email || !pw) { toast('יש להזין אימייל וסיסמה', 'err'); return true; }
+      if (pw.length < 6) { toast('הסיסמה חייבת להיות באורך 6 תווים לפחות', 'err'); return true; }
+      syncSignIn(email.trim(), pw, act === 'syncnew').then(okv => { if (okv) toast('מחובר – מסנכרן…', 'ok'); render(); });
+      return true;
+    }
+    case 'syncout': syncSignOut().then(() => render()); return true;
+    case 'syncnow': syncPushNow(true).then(() => { toast('סונכרן לענן', 'ok'); render(); }).catch(e => toast('שגיאת סנכרון: ' + e.message, 'err', 7000)); return true;
+  }
+  return false;
+}
+/* תצוגה חיה של כללי האבטחה בטופס ההגדרה */
+function syncFormHooks() {
+  const box = $('#syncRulesBox'), sp = $('#syncSpaceIn'), md = $('#syncModeIn');
+  if (!box || !sp || !md) return;
+  const upd = () => {
+    const keep = Sync.cfg;
+    Sync.cfg = { space: sp.value.trim(), mode: md.value };
+    box.textContent = syncRulesText();
+    Sync.cfg = keep;
+  };
+  sp.oninput = upd; md.onchange = upd;
+  upd();
+}
+function syncInit() {
+  syncDeviceId();
+  if (syncCfgLoad()) syncConnect();
+}
+/* =====================================================================
    Cashflow · settings · anomalies · backup · credit import · search · init
    ===================================================================== */
 
@@ -5364,10 +5776,12 @@ function renderSettings(v) {
     '<div>פרויקטי יזם / משהב״ט / עצמאיים</div><div>' + counts.yazam + ' / ' + counts.mod + ' / ' + counts.freelancer + '</div><div>עובדים</div><div>' + S.employees.length + '</div><div>קישורי מסמכים</div><div>' + Object.keys(S.docs).length + '</div></div>' +
     '<div class="toolbar"><button class="btn gold" data-act="save">💾 שמירה ואימות</button><button class="btn" data-act="backup">⬇ הורדת גיבוי JSON מלא</button><button class="btn" data-act="restore">⬆ טעינת JSON…</button></div></div>';
 
+  h += syncCardHTML();
   h += '<div class="setting-card"><h3>נתוני בדיקה (שלב ב׳)</h3><p class="muted">יוצר חוצץ לדוגמה מכל סוג ושורות תפעול מסומנות 🧪 לבדיקת החישובים, התזרים והסינון. ניתן להסיר אותם בלחיצה בלי לפגוע בנתונים אחרים.</p>' +
     '<div class="toolbar"><button class="btn" data-act="testcreate">🧪 יצירת נתוני בדיקה</button><button class="btn danger" data-act="testremove">הסרת נתוני בדיקה</button></div></div>';
   h += '<div class="setting-card"><h3>איפוס מערכת</h3><p class="muted">מוחק את כל הנתונים ומחזיר את האתר לתבנית ריקה. מומלץ להוריד גיבוי קודם.</p><button class="btn danger" data-act="resetall">איפוס מלא…</button></div>';
   v.innerHTML = h;
+  syncFormHooks();
   $$('[data-set]', v).forEach(inp => inp.onchange = () => {
     const k = inp.dataset.set;
     if (inp.dataset.kind === 'num') { const n = num(inp.value); if (n === null) { toast('ערך לא תקין', 'err'); render(); return; } st[k] = n; }
@@ -5378,6 +5792,7 @@ function renderSettings(v) {
   });
 }
 function settingsAction(act, el) {
+  if (syncAction(act, el)) return;
   switch (act) {
     case 'save': saveNow(false); break;
     case 'backup': doBackup(); break;
@@ -5691,6 +6106,7 @@ document.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.ke
   try { const v = localStorage.getItem('atlas_ui_view'); if (v) UI.view = v; } catch (e) { }
   render();
   DocFS.init().then(found => { if (found) render(); });
+  syncInit();
   setInterval(() => { if (ensureBankFees() + ensureCreditRecurring()) { markDirty(); render(); } }, 60 * 60 * 1000);
 })();
 </script>
