@@ -134,25 +134,28 @@ input,select,textarea{font-family:inherit;font-size:13px}
 /* ---------- grid ---------- */
 .grid-wrap{background:#fff;border:1px solid var(--line);border-radius:10px;overflow:auto;max-height:calc(100vh - 290px)}
 table.grid{border-collapse:separate;border-spacing:0;width:max-content;min-width:100%}
-.grid th{position:sticky;top:0;background:var(--navy);color:#fff;font-weight:500;font-size:12px;padding:6px 6px;border-left:1px solid #2b3d6b;white-space:nowrap;z-index:2;text-align:right}
+.grid th{position:sticky;top:0;background:var(--navy);color:#fff;font-weight:500;font-size:11.5px;padding:4px 5px;border-left:1px solid #2b3d6b;white-space:normal;line-height:1.2;z-index:2;text-align:right}
 .grid th .fbtn{background:transparent;border:0;color:#aeb8d6;padding:0 3px;font-size:11px}
 .grid th .fbtn.on{color:var(--gold)}
 .grid th.num{text-align:left}
-.grid td{border-bottom:1px solid var(--line);border-left:1px solid #eef0f5;padding:2px 4px;vertical-align:middle;white-space:nowrap;font-size:13px}
+.grid td{border-bottom:1px solid var(--line);border-left:1px solid #eef0f5;padding:1px 4px;vertical-align:middle;white-space:nowrap;font-size:13px;line-height:1.2}
 .grid tr:hover td{background:#fafbff}
 .grid tr.flash td{animation:flash 2s}
 @keyframes flash{0%,40%{background:var(--gold-soft)}100%{background:transparent}}
 .grid td.auto{background:var(--auto)}
 .grid td.num{text-align:left;direction:ltr}
-.grid input.cell,.grid select.cell{border:1px solid #d7dbe6;border-radius:5px;background:var(--edit);padding:3px 5px;width:100%;min-width:60px}
+.grid input.cell,.grid select.cell{border:1px solid #d7dbe6;border-radius:5px;background:var(--edit);padding:1px 4px;height:22px;line-height:18px;width:100%;min-width:46px}
 .grid input.cell:focus,.grid select.cell:focus{outline:2px solid var(--gold);background:#fff}
 .grid input.cell.num{text-align:left;direction:ltr}
-.grid input.cell.w-s{min-width:48px;width:56px}
-.grid input.cell.w-y{min-width:66px;width:70px}
-.grid select.cell.w-t{min-width:74px;width:78px}
-.grid select.cell.w-s{min-width:58px;width:62px}
-.grid input.cell.w-m{min-width:80px;width:90px}
-.grid input.cell.w-l{min-width:150px;width:180px}
+.grid input.cell.w-s{min-width:40px;width:44px}
+.grid input.cell.w-n{min-width:56px;width:60px}
+.grid input.cell.w-y{min-width:52px;width:56px}
+.grid select.cell.w-t{min-width:58px;width:62px}
+.grid select.cell.w-s{min-width:46px;width:50px}
+.grid input.cell.w-m{min-width:74px;width:80px}
+.grid input.cell.w-ord{min-width:92px;width:96px}
+.grid input.cell.w-l{min-width:110px;width:130px}
+.computed{min-width:56px}
 .grid td.sticky-r{position:sticky;right:0;background:#fff;z-index:1}
 .grid th.sticky-r{right:0;z-index:3}
 .computed{direction:ltr;display:inline-block;min-width:70px;text-align:left}
@@ -171,14 +174,15 @@ table.grid{border-collapse:separate;border-spacing:0;width:max-content;min-width
 .status.fc{background:#eef0f5;color:var(--muted);font-style:normal}
 .row-del{border:0;background:transparent;color:#b8bdc9;font-size:15px;padding:0 4px}
 .row-del:hover{color:var(--red)}
-.term-wrap{display:flex;flex-direction:column;gap:2px}
-.term-wrap small{font-size:11px;color:var(--muted);direction:ltr;text-align:right}
+.term-wrap{display:flex;flex-direction:column;gap:1px}
+.term-wrap small{font-size:10.5px;color:var(--muted);direction:ltr;text-align:right;white-space:nowrap}
 .tot-row td{background:var(--gold-soft)!important;font-weight:700;position:sticky;bottom:0}
 
 /* ---------- date picker ---------- */
 .dp{display:inline-flex;align-items:center;gap:2px}
-.dp input{width:92px!important;min-width:92px!important;direction:ltr;text-align:center}
-.dp button{border:0;background:transparent;padding:0 2px;font-size:14px}
+.dp input{width:76px!important;min-width:76px!important;direction:ltr;text-align:center;font-size:12.5px}
+.dp button{border:0;background:transparent;padding:0 1px;font-size:12px}
+.period-bar .dp input{width:100px!important;min-width:100px!important;font-size:13px}
 #dpPop{position:fixed;background:#fff;border:1px solid #e3e6ec;border-radius:12px;box-shadow:0 10px 30px rgba(20,33,61,.18);padding:12px 12px 10px;z-index:300;width:300px;font-family:inherit}
 #dpPop .hd{display:flex;align-items:center;gap:8px;margin-bottom:10px}
 #dpPop .hd select{flex:1;height:34px;border:1px solid #d9dde4;border-radius:7px;padding:0 8px;background:#fff;font-size:14px;color:#1b2233}
@@ -324,11 +328,11 @@ table.msum tfoot td{background:var(--gold-soft);font-weight:700}
 .docbar .doc-toggle{margin-inline-start:auto}
 .docbar .doclist{flex-basis:100%;max-height:150px;margin-top:2px;border-top:1px dashed var(--line);padding-top:4px}
 .grid-wrap.drop-over{outline:2px dashed var(--gold);outline-offset:-2px;background:#fffdf3}
-.adj{display:flex;flex-direction:column;gap:2px;min-width:112px}
+.adj{display:flex;flex-direction:column;gap:2px;min-width:0}
 .adj .ln{display:flex;align-items:center;gap:3px;margin:0}
-.adj .sg{width:12px;text-align:center;font-weight:700;font-size:13px}
+.adj .sg{width:11px;text-align:center;font-weight:700;font-size:12.5px}
 .adj .add .sg{color:var(--green)}.adj .ded .sg{color:var(--red)}
-.grid .adj input.cell{height:22px;padding:1px 5px;min-width:90px;width:96px;font-size:12.5px}
+.grid .adj input.cell{height:21px;padding:0 4px;min-width:74px;width:78px;font-size:12.5px}
 .grid .adj .add input.cell{background:#f1faf3;border-color:#bfe2c8}
 .grid .adj .ded input.cell{background:#fdf1f1;border-color:#efc4c4}
 .adj.sup{padding-inline-start:4px;border-inline-start:3px solid #c9d3ea}
@@ -460,10 +464,75 @@ table.msum tfoot td{background:var(--gold-soft);font-weight:700}
 .grid tr.pengrp td{background:#eef4fb!important}
 .fund-grid{margin-bottom:10px}
 @media print{#topbar,#sidebar,.toolbar,.docbar{display:none}#main{margin:0}}
+
+/* ================= תצוגה בנייד / מסך צר ================= */
+#tbMenu{display:none;font-size:18px;line-height:1;padding:6px 10px}
+#sbOverlay{display:none}
+@media (max-width:900px){
+  #tbMenu{display:block}
+  body.sb-open #sbOverlay{display:block;position:fixed;inset:52px 0 0 0;background:rgba(10,16,32,.45);z-index:39}
+  body.sb-open{overflow:hidden}
+  #topbar{height:52px;gap:8px;padding:0 10px}
+  #topbar .brand{font-size:17px}
+  #topbar .brand small,#topbar .pill-gold,#topbar .tb-stat,#saveState,#tbBackup,#tbRestore,#tbAnomalies,#tbSettings{display:none}
+  #searchBox{max-width:none;min-width:0}
+  #searchBox input{padding:7px 12px;font-size:16px}
+  #sidebar{top:52px;width:min(290px,84vw);transform:translateX(105%);transition:transform .22s ease;box-shadow:-8px 0 24px rgba(0,0,0,.22);padding-bottom:40px}
+  body.sb-open #sidebar{transform:none}
+  #main{margin:52px 0 0 0;padding:10px 10px 32px}
+  .sb-item,.sb-group-h{padding:10px 10px}
+  .crumb{padding:8px 10px;gap:6px}
+  .crumb h2{font-size:16px;width:100%}
+  .crumb .meta{width:100%;font-size:11.5px}
+  .crumb .grow{display:none}
+  .stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .stat{min-width:0;padding:6px 9px}
+  .stat .v{font-size:14.5px}
+  .stat .l{font-size:10.5px}
+  .stats.stats-clamp{grid-template-rows:auto auto;grid-auto-rows:0;overflow:hidden}
+  .stats.stats-clamp > .stat:nth-child(n+5){display:none}
+  .stats-more{display:block;width:100%;margin:-4px 0 10px}
+  .btn{padding:8px 11px}
+  .btn.sm{padding:6px 9px;font-size:12px}
+  .toolbar{gap:5px}
+  /* טבלאות: גלילה אופקית עם עמודת מס״ד נעוצה */
+  .grid-wrap{max-height:calc(100vh - 200px);-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}
+  .grid td:first-child,.grid th:first-child{position:sticky;right:0;z-index:2;box-shadow:-1px 0 0 var(--line)}
+  .grid td:first-child{background:#fff}
+  .grid th:first-child{z-index:4}
+  .grid input.cell,.grid select.cell{font-size:16px;padding:5px}
+  .grid td{padding:3px 5px}
+  .layout-side{flex-direction:column}
+  .side-panel{width:100%;position:static}
+  .docbar,.docbar.compact{flex-direction:column}
+  .dropzone,.dropzone.mid{flex:0 0 auto;min-width:0;min-height:0;padding:10px}
+  .dropzone.mid .dz-ic{font-size:22px}
+  .dropzone.mid .dz-tx b{font-size:13.5px}
+  .docbar .doc-side{flex:0 0 auto}
+  .docbar .dp-path{min-width:0}
+  #modalBg{padding:8px;align-items:flex-start}
+  .modal,.modal.wide{max-width:none;max-height:94vh}
+  .modal.np-modal{padding:16px 14px}
+  .np-cards{grid-template-columns:1fr;gap:8px;margin-bottom:14px}
+  .np-card{padding:11px 10px;text-align:right}
+  .np-grid{grid-template-columns:1fr;gap:4px 0}
+  .np-grid label{margin-top:8px}
+  .np-grid input,.np-grid select{height:36px;font-size:16px}
+  .modal input,.modal select,.modal textarea{font-size:16px}
+  table.simple{display:block;overflow-x:auto}
+  #toasts{left:8px;right:8px}
+  .toast{max-width:none}
+}
+@media (max-width:560px){
+  #topbar .brand{font-size:15px}
+  .stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .crumb h2{font-size:15px}
+}
 </style>
 </head>
 <body>
 <div id="topbar">
+  <button class="tb-btn" id="tbMenu" aria-label="תפריט">☰</button>
   <div class="brand">ATLAS <small>תזרים ופרויקטים</small></div>
   <span class="pill-gold" id="tbToday"></span>
   <span class="tb-stat">יתרה בפועל: <b id="tbBalance">0</b></span>
@@ -476,6 +545,7 @@ table.msum tfoot td{background:var(--gold-soft);font-weight:700}
   <button class="tb-btn" id="tbAnomalies">⚠ אנומליות<span class="badge hidden" id="anBadge">0</span></button>
   <button class="tb-btn" id="tbSettings">⚙</button>
 </div>
+<div id="sbOverlay"></div>
 <aside id="sidebar"></aside>
 <main id="main"><div id="msgArea"></div><div id="view"></div></main>
 <div id="toasts"></div>
@@ -745,23 +815,22 @@ const COLS = {
     { key: 'taxInvNo', label: 'ח. מס', type: 'doc' },
     { key: 'taxReceiptNo', label: 'ח. מס קבלה', type: 'doc' },
     { key: 'receiptNo', label: 'קבלה', type: 'doc' },
-    { key: 'net', label: 'סכום ללא מע״מ', type: 'num', money: true },
+    { key: 'net', label: 'ללא מע״מ', type: 'num', money: true },
     { key: 'vatPct', label: 'מע״מ %', type: 'pct' },
-    { key: 'vatAmt', label: 'סכום מע״מ', type: 'computed', money: true },
-    { key: 'total', label: 'סה״כ כולל מע״מ', type: 'computed', money: true },
+    { key: 'vatAmt', label: 'מע״מ', type: 'computed', money: true },
+    { key: 'total', label: 'כולל מע״מ', type: 'computed', money: true },
     { key: 'offset', label: 'תוספת / קיזוז', type: 'adjust', money: true },
     { key: 'submitted', label: 'הוגש', type: 'date' },
     { key: 'term', label: 'צפי תשלום', type: 'term' },
     { key: 'expectedPay', label: 'צפי לתשלום', type: 'date' },
-    { key: 'moneyDate', label: 'תאריך קבלת הכסף', type: 'dateAuto' },
+    { key: 'moneyDate', label: 'קבלת הכסף', type: 'dateAuto' },
     { key: 'paid', label: 'שולם', type: 'paidStatus' },
-    { key: 'hasSupplier', label: 'ספק', type: 'supToggle' },
-    { key: 'supplierPct', label: 'אחוז גבייה מהספק', type: 'pct', sup: true },
-    { key: 'supAdj', label: 'תוספת / קיזוז לספק', type: 'adjust', addKey: 'supAdd', dedKey: 'supDed', money: true, sup: true },
+    { key: 'supplierPct', label: '% ספק', type: 'pct' },
+    { key: 'supAdj', label: 'תוספת/קיזוז ספק', type: 'adjust', addKey: 'supAdd', dedKey: 'supDed', money: true, sup: true },
     { key: 'supplierPay', label: 'תשלום לספק', type: 'numAuto', money: true, sup: true },
-    { key: 'supplierDocNo', label: 'ח. מס קבלה ספק', type: 'supdoc', sup: true },
-    { key: 'supplierDocDate', label: 'תאריך ח. ספק', type: 'date', sup: true },
-    { key: 'supplierPayDate', label: 'תאריך תשלום לספק', type: 'dateAuto', sup: true },
+    { key: 'supplierDocNo', label: 'ח.מ.ק ספק', type: 'supdoc', sup: true },
+    { key: 'supplierDocDate', label: 'ת. ח. ספק', type: 'date', sup: true },
+    { key: 'supplierPayDate', label: 'ת. תשלום ספק', type: 'dateAuto', sup: true },
     { key: 'supplierPaid', label: 'שולם לספק', type: 'toggle', sup: true },
     { key: 'notes', label: 'הערות', type: 'text', w: 'l' }
   ],
@@ -769,33 +838,32 @@ const COLS = {
     { key: 'serial', label: 'מס״ד', type: 'serial' },
     { key: 'year', label: 'שנה', type: 'year' },
     { key: 'month', label: 'חודש', type: 'month' },
-    { key: 'orderNo', label: 'מספר הזמנה', type: 'text', w: 'm' },
+    { key: 'orderNo', label: 'הזמנה', type: 'text', w: 'ord' },
     { key: 'dealNo', label: 'ח. עסקה', type: 'doc' },
     { key: 'taxReceiptNo', label: 'ח. מס קבלה', type: 'doc' },
     { key: 'receiptNo', label: 'קבלה', type: 'doc' },
-    { key: 'hours', label: 'שעות עשרוניות', type: 'num' },
-    { key: 'hhmm', label: 'שעות HH:MM', type: 'computed' },
+    { key: 'hours', label: 'שעות', type: 'num' },
+    { key: 'hhmm', label: 'HH:MM', type: 'computed' },
     { key: 'rate', label: 'עלות ש״ע', type: 'num', money: true },
-    { key: 'days', label: 'כמות ימים', type: 'num' },
+    { key: 'days', label: 'ימים', type: 'num' },
     { key: 'km', label: 'ק״מ ליום', type: 'num' },
-    { key: 'kmMonth', label: 'סה״כ ק״מ לחודש', type: 'numAuto', money: false },
-    { key: 'offroad', label: 'רכב שטח', type: 'num', money: true },
+    { key: 'kmMonth', label: 'סה״כ ק״מ', type: 'numAuto', money: false },
+    { key: 'offroad', label: 'ר. שטח', type: 'num', money: true },
     { key: 'expectedPay', label: 'צפי לתשלום', type: 'date' },
     { key: 'preVat', label: 'לפני מע״מ', type: 'computed', money: true },
     { key: 'vatPct', label: 'מע״מ %', type: 'pct' },
     { key: 'total', label: 'כולל מע״מ', type: 'numAuto', money: true },
     { key: 'submitted', label: 'הוגש', type: 'date' },
     { key: 'term', label: 'צפי תשלום', type: 'term' },
-    { key: 'moneyDate', label: 'תאריך קבלת הכסף', type: 'dateAuto' },
+    { key: 'moneyDate', label: 'קבלת הכסף', type: 'dateAuto' },
     { key: 'offset', label: 'תוספת / קיזוז', type: 'adjust', money: true },
     { key: 'paid', label: 'שולם', type: 'paidStatus' },
-    { key: 'hasSupplier', label: 'ספק', type: 'supToggle' },
-    { key: 'supplierPct', label: 'אחוז גבייה מהספק', type: 'pct', sup: true },
-    { key: 'supAdj', label: 'תוספת / קיזוז לספק', type: 'adjust', addKey: 'supAdd', dedKey: 'supDed', money: true, sup: true },
+    { key: 'supplierPct', label: '% ספק', type: 'pct' },
+    { key: 'supAdj', label: 'תוספת/קיזוז ספק', type: 'adjust', addKey: 'supAdd', dedKey: 'supDed', money: true, sup: true },
     { key: 'supplierPay', label: 'תשלום לספק', type: 'numAuto', money: true, sup: true },
-    { key: 'supplierDocNo', label: 'ח. מס קבלה ספק', type: 'supdoc', sup: true },
-    { key: 'supplierDocDate', label: 'תאריך ח. ספק', type: 'date', sup: true },
-    { key: 'supplierPayDate', label: 'תאריך תשלום לספק', type: 'dateAuto', sup: true },
+    { key: 'supplierDocNo', label: 'ח.מ.ק ספק', type: 'supdoc', sup: true },
+    { key: 'supplierDocDate', label: 'ת. ח. ספק', type: 'date', sup: true },
+    { key: 'supplierPayDate', label: 'ת. תשלום ספק', type: 'dateAuto', sup: true },
     { key: 'supplierPaid', label: 'שולם לספק', type: 'toggle', sup: true },
     { key: 'notes', label: 'הערות', type: 'text', w: 'l' }
   ],
@@ -807,14 +875,14 @@ const COLS = {
     { key: 'taxInvNo', label: 'ח. מס', type: 'doc' },
     { key: 'taxReceiptNo', label: 'ח. מס קבלה', type: 'doc' },
     { key: 'receiptNo', label: 'קבלה', type: 'doc' },
-    { key: 'net', label: 'סכום ללא מע״מ', type: 'num', money: true },
+    { key: 'net', label: 'ללא מע״מ', type: 'num', money: true },
     { key: 'vatPct', label: 'מע״מ %', type: 'pct' },
-    { key: 'vatAmt', label: 'סכום מע״מ', type: 'computed', money: true },
-    { key: 'total', label: 'סה״כ כולל מע״מ', type: 'computed', money: true },
+    { key: 'vatAmt', label: 'מע״מ', type: 'computed', money: true },
+    { key: 'total', label: 'כולל מע״מ', type: 'computed', money: true },
     { key: 'offset', label: 'תוספת / קיזוז', type: 'adjust', money: true },
     { key: 'submitted', label: 'הוגש', type: 'date' },
     { key: 'term', label: 'צפי תשלום', type: 'term' },
-    { key: 'moneyDate', label: 'תאריך קבלת הכסף', type: 'dateAuto' },
+    { key: 'moneyDate', label: 'קבלת הכסף', type: 'dateAuto' },
     { key: 'paid', label: 'שולם', type: 'paidStatus' },
     { key: 'notes', label: 'הערות', type: 'text', w: 'l' }
   ],
@@ -961,7 +1029,8 @@ function migrateOffset(row) {
   }
   if (row) delete row.offset;
 }
-function rowHasSupplier(row) { return row.hasSupplier === undefined ? num(row.supplierPct) !== null : !!row.hasSupplier; }
+/* שורה נחשבת ״עם ספק״ כאשר מולא אחוז גבייה מהספק (אין עמודת כן/לא נפרדת) */
+function rowHasSupplier(row) { return num(row.supplierPct) !== null; }
 function entitySupplierForNewRows(e) { return e.supplierForNewRows === undefined ? num(e.supplierPctDefault) !== null : !!e.supplierForNewRows; }
 function newRow(kind, entity) {
   const d = new Date();
@@ -1144,8 +1213,7 @@ function buildCashflow() {
           push(Object.assign({}, refBase, {
             pair, key: id + '|' + row.id + '|sup', dir: 'out', role: 'תשלום לספק', amount: c.supplierPay,
             date: sd, status: row.supplierPaid ? 'actual' : 'forecast', entity: t.name,
-            desc: 'תשלום לספק · תאריך נגזר מתאריך קבלת הכסף של אטלס' +
-              (row.supplierDocDate && row.supplierDocDate !== sd ? ' · ח. מס קבלה של הספק מיום ' + fmtDate(row.supplierDocDate) : ''),
+            desc: 'תשלום לספק' + (row.supplierDocDate ? ' · ח. מס קבלה ספק ' + fmtDate(row.supplierDocDate) : ''),
             docs: [{ field: 'supplierDocNo', no: row.supplierDocNo || '', zero: String(row.supplierDocNo || '').trim() === '0' || !String(row.supplierDocNo || '').trim() }]
           }));
         }
@@ -1416,7 +1484,7 @@ function cellHTML(t, col, row, c) {
     case 'serial': return td('<b>' + esc(row.serial) + '</b>' + (row.auto ? ' <span class="muted" title="נוצר אוטומטית">⚙</span>' : '') + (row.isTest ? ' <span class="muted" title="נתון בדיקה">🧪</span>' : ''), 'sticky-r');
     case 'text': return td('<input class="cell w-' + (col.w || 'm') + '" type="text" value="' + esc(v) + '" data-type="text" ' + a + '>');
     case 'ro': return td('<span class="muted">' + esc(v) + '</span>');
-    case 'num': return td('<input class="cell num w-m" type="text" inputmode="decimal" value="' + esc(col.money ? fmtMoney(num(v)) : fmtNum(num(v))) + '" data-type="num" ' + a + '>');
+    case 'num': return td('<input class="cell num w-' + (col.money ? 'm' : 'n') + '" type="text" inputmode="decimal" value="' + esc(col.money ? fmtMoney(num(v)) : fmtNum(num(v))) + '" data-type="num" ' + a + '>');
     case 'adjust': {
       const ra = 'data-row="' + row.id + '"', ak = col.addKey || 'offAdd', dk = col.dedKey || 'offDed', forSup = !!col.addKey;
       const a = row[ak] == null ? '' : fmtMoney(Math.abs(num(row[ak]))), d = row[dk] == null ? '' : fmtMoney(Math.abs(num(row[dk])));
@@ -1446,7 +1514,7 @@ function cellHTML(t, col, row, c) {
     case 'doc': case 'supdoc': {
       const val = String(v == null ? '' : v).trim();
       const editing = UI.editing === row.id + ':' + k;
-      if (!val || editing) return td('<input class="cell num w-m" type="text" value="' + esc(val) + '" data-type="text" ' + a + (editing ? ' data-autofocus="1"' : '') + ' placeholder="' + (col.type === 'supdoc' ? '0 = חסר' : '') + '">');
+      if (!val || editing) return td('<input class="cell num w-n" type="text" value="' + esc(val) + '" data-type="text" ' + a + (editing ? ' data-autofocus="1"' : '') + ' placeholder="' + (col.type === 'supdoc' ? '0' : '') + '">');
       const linked = findDoc(t.tabId, row.id, k);
       const zero = col.type === 'supdoc' && val === '0';
       return td('<span class="chip ' + (zero ? 'zero' : linked ? 'linked' : '') + '" data-act="opendoc" ' + a + ' title="' + (zero ? 'מסמך ספק חסר' : linked ? 'פתח מסמך: ' + esc(linked.fileName) : 'לא קושר מסמך – גרור PDF לאזור המסמכים') + '">' + (zero ? '0 · חסר' : (linked ? '📄 ' : '') + esc(val)) + '<span class="ed" data-act="editdoc" ' + a + ' title="עריכת מספר">✎</span></span>');
@@ -1881,6 +1949,15 @@ function renderSidebar() {
   h += '<div class="sb-sep"></div>' + item('anomalies', '⚠ אנומליות') + item('settings', '⚙ הגדרות וגיבוי');
   sb.innerHTML = h;
 }
+/* ---- מגירת תפריט בנייד ---- */
+function isNarrow() { return window.matchMedia('(max-width:900px)').matches; }
+function setDrawer(open) { document.body.classList.toggle('sb-open', !!open); }
+function toggleDrawer() { setDrawer(!document.body.classList.contains('sb-open')); }
+$('#tbMenu').onclick = e => { e.stopPropagation(); toggleDrawer(); };
+$('#sbOverlay').onclick = () => setDrawer(false);
+window.addEventListener('resize', () => { if (!isNarrow()) setDrawer(false); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') setDrawer(false); });
+
 $('#sidebar').addEventListener('click', e => {
   if (e.target.closest('[data-newperson]')) { e.stopPropagation(); openNewPersonModal(); return; }
   if (e.target.closest('[data-arch]')) { personState().showArchived = !personState().showArchived; renderSidebar(); return; }
@@ -1894,6 +1971,7 @@ $('#sidebar').addEventListener('click', e => {
 function clientGroupKey(type, client) { return 'c:' + type + ':' + (client || '').trim(); }
 function navigate(view, rowId) {
   closePopups();
+  setDrawer(false);
   if (String(view).startsWith('person:')) {
     personState().key = String(view).slice(7);
     UI.sbOpen.freelancer = true;
@@ -1947,6 +2025,21 @@ function render() {
   else if (focusKey) {
     const el = $('#view [data-row="' + focusKey.row + '"][data-key="' + focusKey.key + '"]');
     if (el && el.focus) el.focus();
+  }
+  mobileStats();
+}
+/* בנייד: כרטיסי הסיכום מתכווצים ל-4 הראשונים עם כפתור פתיחה, כדי שהטבלה תישאר קרובה למעלה */
+function mobileStats() {
+  if (!isNarrow()) return;
+  for (const st of $$('#view .stats')) {
+    if (st.dataset.mob || st.children.length <= 4) continue;
+    st.dataset.mob = '1';
+    if (!UI.statsOpen) st.classList.add('stats-clamp');
+    const b = document.createElement('button');
+    b.className = 'btn sm stats-more';
+    b.textContent = UI.statsOpen ? 'הסתרת נתוני סיכום ▲' : 'כל נתוני הסיכום (' + st.children.length + ') ▼';
+    b.onclick = () => { UI.statsOpen = !UI.statsOpen; render(); };
+    st.insertAdjacentElement('afterend', b);
   }
 }
 function renderTopStats() {
