@@ -6121,4 +6121,42 @@ $('#searchInput').addEventListener('input', e => {
     const t = tabInfo(id);
     if (t.name.includes(q)) res.push({ view: id, text: '📁 ' + t.name });
     for (const row of t.rows) {
-   
+      const c = calcRow(t.kind, row);
+      const hit = t.cols.map(col => cellText(t, col, row, c)).find(s => s && s.includes(q));
+      if (hit) res.push({ view: id, row: row.id, text: t.name + ' · שורה ' + row.serial + ' · ' + hit });
+      if (res.length > 40) break;
+    }
+  }
+  box.innerHTML = res.length ? res.map((r, i) => '<div data-i="' + i + '">' + esc(r.text) + '</div>').join('') : '<div class="muted">לא נמצאו תוצאות</div>';
+  box.classList.remove('hidden');
+  $$('div[data-i]', box).forEach(d => d.onclick = () => { const r = res[+d.dataset.i]; box.classList.add('hidden'); navigate(r.view, r.row); });
+});
+
+/* ---------------- top bar ---------------- */
+$('#tbSave').onclick = () => saveNow(false);
+$('#tbBackup').onclick = doBackup;
+$('#tbRestore').onclick = () => $('#restoreFile').click();
+$('#tbAnomalies').onclick = () => navigate('anomalies');
+$('#tbSettings').onclick = () => navigate('settings');
+document.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); saveNow(false); } });
+
+/* ---------------- init ---------------- */
+(function init() {
+  try {
+    const loaded = Storage.load();
+    if (loaded) { S = normalizeState(loaded); setSaveState('ok', '✓ נטען מהשמירה המקומית'); }
+    else { S = defaultState(); setSaveState('ok', 'מערכת חדשה – ריקה'); }
+  } catch (e) {
+    S = defaultState();
+    $('#msgArea').innerHTML = '<div class="msg err">טעינת הנתונים השמורים נכשלה (' + esc(e.message) + '). המערכת נפתחה ריקה והנתונים הקודמים לא נמחקו מהדפדפן – אל תשמור לפני טעינת גיבוי.</div>';
+    S.settings.autosave = false;
+  }
+  if (ensureBankFees() + ensureCreditRecurring()) markDirty();
+  try { const v = localStorage.getItem('atlas_ui_view'); if (v) UI.view = v; } catch (e) { }
+  render();
+  DocFS.init().then(found => { if (found) render(); });
+  syncInit();
+  setInterval(() => { if (ensureBankFees() + ensureCreditRecurring()) { markDirty(); render(); } }, 60 * 60 * 1000);
+})();
+</script>
+</body></html>
