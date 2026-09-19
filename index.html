@@ -534,6 +534,18 @@ table.msum tfoot td{background:var(--gold-soft);font-weight:700}
   .crumb h2{font-size:15px}
 }
 
+/* ---------- בחירת עמודות ---------- */
+.col-pick{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:6px;max-height:52vh;overflow:auto;padding:2px}
+.cp-row{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:8px;padding:7px 10px;cursor:pointer;background:#fff;font-size:13px}
+.cp-row:hover{border-color:var(--navy2);background:#fafbff}
+.cp-row input{width:16px;height:16px;flex:0 0 auto}
+.cp-row .cp-name{font-weight:600;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cp-row .cp-note{font-size:11px;color:var(--muted);white-space:nowrap}
+.cp-row .cp-note.has{color:var(--warn)}
+.cp-row.off{background:#f4f5f9;color:var(--muted)}
+.cp-row.off .cp-name{font-weight:400}
+.cp-row.lock{opacity:.6;cursor:default}
+
 /* ---------- מרכז התראות ---------- */
 #tbAlerts.has-alerts{background:var(--red);animation:alpulse 2.4s ease-in-out infinite}
 @keyframes alpulse{0%,100%{opacity:1}50%{opacity:.72}}
@@ -1039,7 +1051,7 @@ function tabInfo(tabId) {
   }
   const e = S.entities[tabId];
   if (!e) return null;
-  return { tabId, kind: e.type, isOps: false, name: e.name, entity: e, holder: e, rows: e.rows, cols: COLS[e.type].filter(c => !c.flag || entityFlag(e, c.flag)) };
+  return { tabId, kind: e.type, isOps: false, name: e.name, entity: e, holder: e, rows: e.rows, cols: COLS[e.type].filter(c => colVisible(e, c)) };
 }
 function allTabIds() { return [...S.entityOrder, ...Object.keys(OPS).map(k => 'ops:' + k)]; }
 function nextSerial(rows) { return rows.reduce((m, r) => Math.max(m, nz(r.serial)), 0) + 1; }
@@ -1065,12 +1077,44 @@ function migrateOffset(row) {
 }
 /* שורה נחשבת ״עם ספק״ כאשר מולא אחוז גבייה מהספק (אין עמודת כן/לא נפרדת) */
 function rowHasSupplier(row) { return num(row.supplierPct) !== null; }
-/* עמודות אופציונליות ברמת הפרויקט (למשל רכב שטח) – ברירת מחדל לפי הנתונים הקיימים */
-function entityFlag(e, flag) {
-  if (!e) return true;
-  if (e[flag] !== undefined) return !!e[flag];
-  if (flag === 'hasOffroad') return (e.rows || []).some(r => nz(r.offroad));
-  return false;
+/* ---- הסתרת עמודות ברמת החוצץ (בחירה של המשתמש, לכל פרויקט בנפרד) ----
+   ההסתרה היא תצוגתית בלבד: הנתונים נשמרים וממשיכים להשתתף בכל חישוב ובתזרים. */
+const COL_ALWAYS = ['serial'];
+function colHideable(col) { return !COL_ALWAYS.includes(col.key); }
+function hiddenColsOf(e) {
+  if (!e) return [];
+  if (!Array.isArray(e.hiddenCols)) e.hiddenCols = defaultHiddenCols(e);
+  return e.hiddenCols;
+}
+function defaultHiddenCols(e) {
+  const h = [];
+  // תאימות לאחור: עמודת רכב שטח הוסתרה בעבר בדגל נפרד
+  if (e.hasOffroad === false) h.push('offroad');
+  else if (e.hasOffroad === undefined && e.type === 'mod' && !(e.rows || []).some(r => nz(r.offroad))) h.push('offroad');
+  return h;
+}
+function colVisible(e, col) { return !hiddenColsOf(e).includes(col.key); }
+function setColHidden(e, key, hide) {
+  const h = hiddenColsOf(e);
+  const i = h.indexOf(key);
+  if (hide && i < 0) h.push(key);
+  if (!hide && i >= 0) h.splice(i, 1);
+  if (key === 'offroad') e.hasOffroad = !hide;
+}
+/* שומר על הכפתור המהיר של רכב שטח */
+function entityFlag(e, flag) { return flag === 'hasOffroad' ? colVisible(e, { key: 'offroad' }) : true; }
+/* כמה שורות מכילות נתון בעמודה – כולל עמודות מחושבות, כדי ש"הסתרת עמודות ריקות" לא תסתיר חישובים */
+const COL_DERIVED = ['computed', 'numAuto', 'dateAuto', 'paidStatus', 'bankBal'];
+function colDataCount(t, col) {
+  if (typeof col === 'string') col = t.cols.find(c => c.key === col) || (COLS[t.kind] || []).find(c => c.key === col) || { key: col, type: 'text' };
+  const k = col.key;
+  return t.rows.filter(r => {
+    if (col.type === 'adjust') return !!(nz(r[col.addKey || 'offAdd']) || nz(r[col.dedKey || 'offDed']));
+    const v = COL_DERIVED.includes(col.type) ? calcRow(t.kind, r)[k] : r[k];
+    if (v === undefined || v === null || v === false) return false;
+    if (typeof v === 'number') return v !== 0;
+    return String(v).trim() !== '';
+  }).length;
 }
 function entitySupplierForNewRows(e) { return e.supplierForNewRows === undefined ? num(e.supplierPctDefault) !== null : !!e.supplierForNewRows; }
 function newRow(kind, entity) {
@@ -2115,6 +2159,7 @@ function renderTab(v, t) {
     '<button class="btn" data-act="xlsx">📗 Excel</button><button class="btn" data-act="pdf">📕 PDF</button>' +
     '<button class="btn" data-act="clearf"' + (Object.values(tabFilters(t.tabId)).some(Boolean) ? '' : ' disabled') + '>✖ ניקוי מסננים</button>';
   if (t.kind === 'yazam' || t.kind === 'mod') { const on = entitySupplierForNewRows(e); h += '<button class="btn" data-act="supdefault" title="קובע אם שורה חדשה תיפתח עם ספק או בלי. שורות קיימות לא משתנות.">שורות חדשות: <span class="status ' + (on ? 'yes' : 'fc') + '">' + (on ? 'עם ספק' + (num(e.supplierPctDefault) !== null ? ' ' + e.supplierPctDefault + '%' : '') : 'ללא ספק') + '</span></button>'; }
+  if (!t.isOps) { const nh = hiddenColsOf(e).length; h += '<button class="btn" data-act="colpick" title="בחירת העמודות שיוצגו בחוצץ הזה">👁 עמודות' + (nh ? ' <span class="status fc">' + nh + ' מוסתרות</span>' : '') + '</button>'; }
   if (t.kind === 'mod') { const onO = entityFlag(e, 'hasOffroad'); h += '<button class="btn" data-act="offroadtoggle" title="הצגה או הסתרה של עמודת רכב שטח בפרויקט זה">רכב שטח: <span class="status ' + (onO ? 'yes' : 'fc') + '">' + (onO ? 'מוצג' : 'מוסתר') + '</span></button>'; }
   if (t.kind === 'salaries' || t.kind === 'pensions') h += '<button class="btn" data-act="employees">👥 ניהול עובדים (' + S.employees.length + ')</button>';
   if (t.kind === 'credit') h += '<button class="btn gold" data-act="ccimport">📥 יבוא קובץ FIBI / Excel</button>';
@@ -2516,6 +2561,37 @@ function openEditEntityModal(t) {
     }, { label: 'ביטול' }]
   });
 }
+/* ---------------- בחירת עמודות לכל חוצץ ---------------- */
+function colPickerModal(t) {
+  const e = t.entity;
+  const all = COLS[e.type];
+  const draw = bg => {
+    const hid = hiddenColsOf(e);
+    const shown = all.filter(c => !hid.includes(c.key)).length;
+    $('.mb', bg).innerHTML =
+      '<p class="muted" style="font-size:13px;margin:0 0 10px">בוחרים אילו עמודות יופיעו בחוצץ <b>' + esc(t.name) + '</b> בלבד. חוצצים אחרים לא מושפעים.<br>' +
+      '<b>ההסתרה היא תצוגתית בלבד</b> – הנתונים נשמרים וממשיכים להשתתף בכל החישובים ובתזרים.</p>' +
+      '<div class="toolbar"><button class="btn sm" data-cp="all">הצגת כל העמודות</button><button class="btn sm" data-cp="empty">הסתרת כל העמודות הריקות</button>' +
+      '<span class="grow" style="flex:1"></span><span class="muted" style="font-size:12.5px">מוצגות ' + shown + ' מתוך ' + all.length + '</span></div>' +
+      '<div class="col-pick">' + all.map(c => {
+        const lock = !colHideable(c);
+        const on = !hid.includes(c.key);
+        const n = colDataCount(t, c.key);
+        return '<label class="cp-row' + (on ? '' : ' off') + (lock ? ' lock' : '') + '"><input type="checkbox" data-col="' + esc(c.key) + '"' + (on ? ' checked' : '') + (lock ? ' disabled' : '') + '>' +
+          '<span class="cp-name">' + esc(c.label) + '</span>' +
+          (lock ? '<span class="cp-note">קבועה</span>' : n ? '<span class="cp-note has">' + n + ' שורות עם נתונים</span>' : '<span class="cp-note">ריקה</span>') + '</label>';
+      }).join('') + '</div>';
+    $$('[data-col]', bg).forEach(cb => cb.onchange = () => { setColHidden(e, cb.dataset.col, !cb.checked); markDirty(); draw(bg); render(); });
+    $('[data-cp=all]', bg).onclick = () => { e.hiddenCols = []; e.hasOffroad = true; markDirty(); draw(bg); render(); toast('כל העמודות מוצגות', 'ok'); };
+    $('[data-cp=empty]', bg).onclick = () => {
+      let n = 0;
+      all.forEach(c => { if (colHideable(c) && !colDataCount(t, c.key) && colVisible(e, c)) { setColHidden(e, c.key, true); n++; } });
+      markDirty(); draw(bg); render();
+      toast(n ? n + ' עמודות ריקות הוסתרו' : 'אין עמודות ריקות להסתרה', n ? 'ok' : 'info');
+    };
+  };
+  openModal({ title: 'עמודות מוצגות – ' + t.name, wide: true, body: '', onOpen: draw, buttons: [{ label: 'סגירה', cls: 'primary' }] });
+}
 function openDeleteEntityModal(t) {
   const e = t.entity;
   const docs = Object.values(S.docs).filter(d => d.tabId === e.id).length;
@@ -2739,12 +2815,11 @@ $('#view').addEventListener('click', e => {
     }
     case 'offroadtoggle': {
       const e3 = t.entity, onO = !entityFlag(e3, 'hasOffroad');
-      const used = e3.rows.filter(r => nz(r.offroad)).length;
-      if (!onO && used) { toast('לא ניתן להסתיר – ב-' + used + ' שורות יש סכום רכב שטח שמשפיע על החישוב. נקה אותן תחילה.', 'warn', 6500); break; }
-      e3.hasOffroad = onO; markDirty(); render();
+      setColHidden(e3, 'offroad', !onO); markDirty(); render();
       toast(onO ? 'עמודת רכב שטח מוצגת בפרויקט זה' : 'עמודת רכב שטח הוסתרה בפרויקט זה', 'ok');
       break;
     }
+    case 'colpick': colPickerModal(t); break;
     case 'supdefault': {
       const e2 = t.entity, on = !entitySupplierForNewRows(e2);
       if (on && num(e2.supplierPctDefault) === null) {
