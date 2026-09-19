@@ -4795,6 +4795,7 @@ function personAction(act, el, e) {
 
 const SYNC_CFG_KEY = 'atlas_sync_cfg_cash2027_rtdb';
 const SYNC_DEV_KEY = 'atlas_device_id';
+const SYNC_BASE_KEY = 'atlas_sync_baseline_cash2027_rtdb';
 const SYNC_SDK_BASE = 'https://www.gstatic.com/firebasejs/10.12.2/';
 const SYNC_CHUNK = 700000;
 // Shared Firebase connection for this published page. No sign-in is required.
@@ -4893,6 +4894,53 @@ function syncUnpack(d) {
 function syncStateEmpty() {
   return !S.entityOrder.length && !S.employees.length && Object.values(S.ops).every(o => !(o.rows || []).length);
 }
+function syncFingerprint(pairs) {
+  return hashStr(pairs.sort((a, b) => a[0].localeCompare(b[0])).map(([id, hash]) => id + ':' + hash).join('|'));
+}
+function syncLocalFingerprint() {
+  const units = syncUnits();
+  return syncFingerprint(Object.keys(units).map(id => [id, hashStr(JSON.stringify(units[id]))]));
+}
+function syncCloudFingerprint(snap) {
+  const pairs = [];
+  snap.forEach(d => { pairs.push([d.key, hashStr((((d.val() || {}).p) || []).join(''))]); });
+  return syncFingerprint(pairs);
+}
+function syncSentFingerprint() {
+  return syncFingerprint(Object.keys(Sync.sent).map(id => [id, Sync.sent[id]]));
+}
+function syncScope() {
+  return Sync.cfg.projectId + '|' + syncMode() + '|' + (syncMode() === 'open' ? syncSpace() : Sync.user.uid);
+}
+function syncBaselineLoad() {
+  try {
+    const base = JSON.parse(localStorage.getItem(SYNC_BASE_KEY) || 'null');
+    return base && base.scope === syncScope() ? base : null;
+  } catch (e) { return null; }
+}
+function syncBaselineSave() {
+  try {
+    localStorage.setItem(SYNC_BASE_KEY, JSON.stringify({
+      scope: syncScope(), local: syncLocalFingerprint(), cloud: syncSentFingerprint()
+    }));
+  } catch (e) { }
+}
+function syncFirstChoice(cloudEmpty, localEmpty, localHash, cloudHash, base) {
+  if (cloudEmpty) return 'push';
+  if (localEmpty) return 'pull';
+  if (localHash === cloudHash || (base && base.local === localHash && base.cloud === cloudHash)) return 'same';
+  if (base && base.local === localHash) return 'pull';
+  if (base && base.cloud === cloudHash) return 'push';
+  return 'ask';
+}
+function syncRememberSnap(snap) {
+  Sync.sent = {}; Sync.rev = {};
+  snap.forEach(d => {
+    const data = d.val() || {};
+    Sync.sent[d.key] = hashStr((data.p || []).join(''));
+    Sync.rev[d.key] = data.rev || 0;
+  });
+}
 
 /* ---------- טעינת ה-SDK ---------- */
 function syncLoadScript(src) {
@@ -4980,16 +5028,18 @@ async function syncStart() {
   const snap = await col.once('value');
   const cloudEmpty = !snap.exists();
   const localEmpty = syncStateEmpty();
-  if (cloudEmpty) { Sync.on = true; await syncPushNow(true); }
-  else if (localEmpty) { syncPullSnap(snap); Sync.on = true; }
+  const choice = syncFirstChoice(cloudEmpty, localEmpty, syncLocalFingerprint(), syncCloudFingerprint(snap), syncBaselineLoad());
+  if (choice === 'same') { syncRememberSnap(snap); Sync.on = true; }
+  else if (choice === 'push') { syncRememberSnap(snap); Sync.on = true; await syncPushNow(true); }
+  else if (choice === 'pull') { syncPullSnap(snap); Sync.on = true; }
   else {
     let cloudRows = 0;
     snap.forEach(d => { cloudRows += (((d.val() || {}).p || []).join('').match(/"id":"r_/g) || []).length; });
     const localRows = Object.values(S.entities).reduce((a, e) => a + e.rows.length, 0) + Object.values(S.ops).reduce((a, o) => a + (o.rows || []).length, 0);
     const done = await new Promise(res => {
       openModal({
-        title: 'סנכרון ראשון – יש נתונים בשני הצדדים',
-        body: '<p>גם במכשיר הזה וגם בענן כבר קיימים נתונים. יש לבחור מה הגרסה הנכונה – הצד השני יידרס.</p>' +
+        title: 'בחירת גרסה – הנתונים שונים במכשיר ובענן',
+        body: '<p>נמצאו שינויים שלא ניתן ליישב אוטומטית. יש לבחור מה הגרסה הנכונה – הצד השני יידרס.</p>' +
           '<table class="simple"><tr><th></th><th>שורות</th></tr><tr><td>המכשיר הזה</td><td class="num">' + localRows + '</td></tr><tr><td>הענן</td><td class="num">≈' + cloudRows + '</td></tr></table>' +
           '<p class="muted" style="font-size:12px">לפני דריסה יורד אוטומטית גיבוי JSON של המצב הנוכחי במכשיר.</p>',
         buttons: [
@@ -5002,12 +5052,8 @@ async function syncStart() {
     if (done === 'cancel') { syncSetState('signin', 'הסנכרון לא הופעל'); return; }
     doBackup();
     if (done === 'push') {
+      syncRememberSnap(snap);
       Sync.on = true;
-      snap.forEach(d => {
-        const data = d.val() || {};
-        Sync.sent[d.key] = hashStr((data.p || []).join(''));
-        Sync.rev[d.key] = data.rev || 0;
-      });
       await syncPushNow(true);
     }
     else { syncPullSnap(snap); Sync.on = true; }
@@ -5025,6 +5071,7 @@ async function syncStart() {
     col.off('child_removed', onRemove);
   };
   Sync.last = new Date();
+  syncBaselineSave();
   syncSetState('on');
 }
 function syncPullSnap(snap) {
@@ -5059,6 +5106,7 @@ function syncOnChild(type, snap) {
   Sync.busy = false;
   Sync.last = new Date();
   render();
+  syncBaselineSave();
   toast('התקבל עדכון ממכשיר אחר', 'ok');
 }
 
@@ -5090,6 +5138,7 @@ async function syncPushNow(all) {
     }
     for (const id of gone) { await col.child(id).remove(); delete Sync.sent[id]; delete Sync.rev[id]; }
     Sync.last = new Date();
+    syncBaselineSave();
     syncSetState('on');
   } catch (e) { syncSetState('err', e.message); throw e; }
 }
@@ -6072,42 +6121,4 @@ $('#searchInput').addEventListener('input', e => {
     const t = tabInfo(id);
     if (t.name.includes(q)) res.push({ view: id, text: '📁 ' + t.name });
     for (const row of t.rows) {
-      const c = calcRow(t.kind, row);
-      const hit = t.cols.map(col => cellText(t, col, row, c)).find(s => s && s.includes(q));
-      if (hit) res.push({ view: id, row: row.id, text: t.name + ' · שורה ' + row.serial + ' · ' + hit });
-      if (res.length > 40) break;
-    }
-  }
-  box.innerHTML = res.length ? res.map((r, i) => '<div data-i="' + i + '">' + esc(r.text) + '</div>').join('') : '<div class="muted">לא נמצאו תוצאות</div>';
-  box.classList.remove('hidden');
-  $$('div[data-i]', box).forEach(d => d.onclick = () => { const r = res[+d.dataset.i]; box.classList.add('hidden'); navigate(r.view, r.row); });
-});
-
-/* ---------------- top bar ---------------- */
-$('#tbSave').onclick = () => saveNow(false);
-$('#tbBackup').onclick = doBackup;
-$('#tbRestore').onclick = () => $('#restoreFile').click();
-$('#tbAnomalies').onclick = () => navigate('anomalies');
-$('#tbSettings').onclick = () => navigate('settings');
-document.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); saveNow(false); } });
-
-/* ---------------- init ---------------- */
-(function init() {
-  try {
-    const loaded = Storage.load();
-    if (loaded) { S = normalizeState(loaded); setSaveState('ok', '✓ נטען מהשמירה המקומית'); }
-    else { S = defaultState(); setSaveState('ok', 'מערכת חדשה – ריקה'); }
-  } catch (e) {
-    S = defaultState();
-    $('#msgArea').innerHTML = '<div class="msg err">טעינת הנתונים השמורים נכשלה (' + esc(e.message) + '). המערכת נפתחה ריקה והנתונים הקודמים לא נמחקו מהדפדפן – אל תשמור לפני טעינת גיבוי.</div>';
-    S.settings.autosave = false;
-  }
-  if (ensureBankFees() + ensureCreditRecurring()) markDirty();
-  try { const v = localStorage.getItem('atlas_ui_view'); if (v) UI.view = v; } catch (e) { }
-  render();
-  DocFS.init().then(found => { if (found) render(); });
-  syncInit();
-  setInterval(() => { if (ensureBankFees() + ensureCreditRecurring()) { markDirty(); render(); } }, 60 * 60 * 1000);
-})();
-</script>
-</body></html>
+   
